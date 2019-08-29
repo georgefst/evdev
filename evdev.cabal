@@ -2,6 +2,9 @@ cabal-version:       2.2
 name:                evdev
 version:             0.1.0.0
 author:              George Thomas
+description:         Bindings to libevdev
+license:             BSD-3-Clause
+category:            System
 extra-source-files:  CHANGELOG.md
 
 library
@@ -11,19 +14,23 @@ library
   ghc-options:         -dynamic -shared -fPIC -Wall
   build-depends:       base == 4.*
                      , bytestring == 0.10.*
+                     , composition
                      , containers == 0.6.*
                      , extra == 1.6.*
                      , hinotify == 0.4.*
                      , posix-paths == 0.2.*
                      , process == 1.6.*
+                     , protolude
                      , rawfilepath == 0.2.*
                      , streaming == 0.2.*
+                     , time
                      , transformers == 0.5.*
                      , unix == 2.7.*
   hs-source-dirs:      src
   build-tools:         c2hs
   default-language:    Haskell2010
-  default-extensions:  ForeignFunctionInterface
+  default-extensions:  GeneralizedNewtypeDeriving
+                     , LambdaCase
                      , OverloadedLists
                      , OverloadedStrings
   includes:            libevdev-1.0/libevdev/libevdev.h

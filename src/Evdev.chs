@@ -1,3 +1,5 @@
+{-# LANGUAGE ForeignFunctionInterface #-}
+
 module Evdev (
       Device
     , Event (..)
@@ -5,26 +7,39 @@ module Evdev (
     , Fd (..)
     , Key
     , KeyEventType (..)
+    , SyncEventType (..)
     , defaultReadFlags
     , devicePath
+    , getDeviceName
+    , getDeviceProperties
     , grabDevice
     , newDevice
     , nextEvent
+    , readEvents
     , runOnEvents
     , ungrabDevice
 ) where
 
+import Control.Applicative
 import Control.Concurrent
 import Control.Exception.Extra
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
+import Data.Composition
+import Data.Either
+import Data.Int
+import Data.List.Extra
+import Data.Maybe
+import Data.Time.Clock
 
 import qualified Data.ByteString.Char8 as BS
 import Data.Set (Set)
 import Foreign (Ptr,(.|.))
-import Foreign.C (CInt,CUInt)
-import GHC.IO.Exception (IOException(IOError),IOErrorType(..),ioe_type) -- not sure we shoudl use this...
+import Foreign.C (CInt,CUInt,CLong)
+import GHC.IO.Exception (IOException(IOError),IOErrorType(IllegalOperation,NoSuchThing,PermissionDenied),ioe_type)
+import Protolude.Functor ((<<$>>))
+import Protolude.Applicative (liftAA2)
 import RawFilePath.Directory (doesFileExist,listDirectory)
 import Streaming.Prelude (Of,Stream)
 import qualified Streaming.Prelude as Streaming
@@ -35,36 +50,140 @@ import System.Posix.FilePath ((</>),combine)
 import System.Posix.IO.ByteString (OpenMode(ReadOnly),defaultFileFlags,openFd)
 import System.Posix.Types (Fd(Fd))
 
-import Evdev.Codes (Key)
+import Evdev.Codes
 
 #include <libevdev-1.0/libevdev/libevdev.h>
 #include <linux/input.h>
 
--- unfortunately the prefix part of the hook seems not to work
-{#enum libevdev_read_flag as ReadFlags { LIBEVDEV_READ_FLAG_SYNC as Sync, LIBEVDEV_READ_FLAG_NORMAL as Normal, LIBEVDEV_READ_FLAG_FORCE_SYNC as ForceSync, LIBEVDEV_READ_FLAG_BLOCKING as Blocking } deriving (Eq,Ord,Show) #}
+
+{- Exported types -}
+
+-- We don't allow the user to access the underlying CDevice.
+data Device
+    = Device { cDevice :: CDevice, devicePath :: RawFilePath }
+
+data Event
+    = SyncEvent SyncEventType DiffTime
+    | KeyEvent Key KeyEventType DiffTime
+    | RelativeEvent RelativeAxis EventValue DiffTime
+    | AbsoluteEvent AbsoluteAxis EventValue DiffTime
+    | MiscEvent MiscEventType EventValue DiffTime
+    | SwitchEvent SwitchEventType EventValue DiffTime
+    | LEDEvent LEDEventType EventValue DiffTime
+    | SoundEvent SoundEventType EventValue DiffTime
+    | AutorepeatEvent AutorepeatEventType EventValue DiffTime
+    | FFEvent EventCode EventValue DiffTime
+    | PowerEvent EventCode EventValue DiffTime
+    | FFStatusEvent EventCode EventValue DiffTime
+    | UnknownEvent EventType EventCode EventValue DiffTime -- for forward compatibility
+    deriving (Eq, Show)
+eventTime :: Event -> DiffTime
+eventTime = \case
+    KeyEvent _ _ t -> t
+    RelativeEvent _ _ t -> t
+    AbsoluteEvent _ _ t -> t
+    MiscEvent _ _ t -> t
+    SwitchEvent _ _ t -> t
+    SyncEvent _ t -> t
+    LEDEvent _ _ t -> t
+    SoundEvent _ _ t -> t
+    AutorepeatEvent _ _ t -> t
+    FFEvent _ _ t -> t
+    PowerEvent _ _ t -> t
+    FFStatusEvent _ _ t -> t
+    UnknownEvent _ _ _ t -> t
+
+data KeyEventType
+    = Released
+    | Pressed
+    | Repeated
+    deriving (Enum, Eq, Ord, Read, Show)
+
+{#enum libevdev_read_flag as ReadFlags {
+    LIBEVDEV_READ_FLAG_SYNC as Sync,
+    LIBEVDEV_READ_FLAG_NORMAL as Normal,
+    LIBEVDEV_READ_FLAG_FORCE_SYNC as ForceSync,
+    LIBEVDEV_READ_FLAG_BLOCKING as Blocking }
+    deriving (Eq,Ord,Show) #}
+
+-- TODO safe to derive integral, real?
+newtype EventType = EventType Int16 deriving (Enum, Eq, Ord, Read, Show)
+newtype EventCode = EventCode Int16 deriving (Enum, Eq, Ord, Read, Show)
+newtype EventValue = EventValue Int32 deriving (Enum, Eq, Ord, Read, Show)
+
+
+{- Low-level types -}
+
+{#pointer *input_event as CEvent foreign newtype#}
+
+{#pointer *timeval as CTime foreign newtype#}
+
+{#pointer *libevdev as CDevice newtype #}
+
+{#enum libevdev_grab_mode as GrabMode { underscoreToCase } deriving (Show) #}
+
+
+{- Conversions -}
+
+convertEvent :: CEvent -> IO Event
+convertEvent ev =
+    join $ classifyEvent
+        <$> fmap EventType (getIntField {#get input_event->type #})
+        <*> fmap EventCode (getIntField {#get input_event->code #})
+        <*> fmap EventValue (getIntField {#get input_event->value #})
+        <*> withCEvent ev getTime
+    where
+        getIntField :: (Integral a,Integral b) => (Ptr CEvent -> IO a) -> IO b
+        getIntField f = withCEvent ev (fmap fromIntegral . f)
+        getTime :: Ptr CEvent -> IO DiffTime
+        getTime ptr =
+            let sec, usec :: IO CLong
+                sec = C2HSImp.peekByteOff ptr 0
+                usec = C2HSImp.peekByteOff ptr {#sizeof __kernel_time_t #}
+            in  convertTime <$> (fromIntegral <$> sec) <*> (fromIntegral <$> usec)
+        convertTime s us = picosecondsToDiffTime $ 1000000000000 * fromIntegral s + 1000000 * fromIntegral us
+        toEnumSafe :: Enum a => Int -> IO (Maybe a) -- little bit of a hack
+        toEnumSafe = fmap rightToMaybe . (try :: IO a -> IO (Either ErrorCall a)) . evaluate . toEnum
+        convertEnumSafe :: (Enum a, Enum b) => a -> IO (Maybe b)
+        convertEnumSafe = toEnumSafe . fromEnum
+        classifyEvent :: EventType -> EventCode -> EventValue -> DiffTime -> IO Event
+        classifyEvent t@(EventType t') c v ts = ($ ts) . fromMaybe defaultEvent <$> case t' of
+            {#const EV_SYN #} -> SyncEvent <<$>> convertEnumSafe c
+            {#const EV_KEY #} -> liftAA2 KeyEvent (convertEnumSafe c) (convertEnumSafe v)
+            {#const EV_ABS #} -> simple AbsoluteEvent
+            {#const EV_REL #} -> simple RelativeEvent
+            {#const EV_MSC #} -> simple MiscEvent
+            {#const EV_SW #}  -> simple SwitchEvent
+            {#const EV_LED #} -> simple LEDEvent
+            {#const EV_SND #} -> simple SoundEvent
+            {#const EV_REP #} -> simple AutorepeatEvent
+            {#const EV_FF #} -> simple FFEvent
+            {#const EV_PWR #} -> simple PowerEvent
+            {#const EV_FF_STATUS #} -> simple FFStatusEvent
+            _ -> pure $ pure $ defaultEvent
+            where
+                defaultEvent :: DiffTime -> Event
+                defaultEvent = UnknownEvent t c v
+                simple :: Enum a => (a -> EventValue -> DiffTime -> Event) -> IO (Maybe (DiffTime -> Event))
+                simple x = liftAA2 x (convertEnumSafe c) (pure $ pure $ v)
+
+convertFlags :: Set ReadFlags -> CUInt
+convertFlags = fromIntegral . foldr ((.|.).fromEnum) 0
+
+convertEnum :: (Enum a, Integral b) => a -> b
+convertEnum = fromIntegral . fromEnum
+
+
+{- Exported functions -}
+
 -- blocking seems to be necessary to stop us from only getting half the events
 defaultReadFlags :: Set ReadFlags
 defaultReadFlags = [Normal,Blocking]
 
-{#pointer *input_event as CEvent foreign newtype#}
--- doesnt seem there's a way to pass this to fun (more complicated than others - output, pointer, IO, +)
-convertEvent :: CEvent -> IO Event
-convertEvent ev = do
-    let getField f = withCEvent ev (fmap fromIntegral . f)
-    classifyEvent
-        <$> getField {#get input_event->type #}
-        <*> getField {#get input_event->code #}
-        <*> getField {#get input_event->value #}
-
-classifyEvent :: Int -> Int -> Int -> Event
-classifyEvent t c v -- type, code, value
-    | t == {#const EV_KEY #} = KeyEvent {evKeyCode = toEnum c, evKeyEventType = toEnum v}
-    | otherwise              = MscEvent {evType = t, evCode = c, evValue = v}
-
 -- unofrtunately it seems impossible to use '+' without discarding the original output data
 -- so we have to do this bit manually
 -- TODO PR on c2hs to add this functionality
---{#fun libevdev_next_event as ^ { `CDevice', convertFlags `Set ReadFlags', + } -> `CEvent' #}
+-- {#fun libevdev_next_event as ^ { `CDevice', convertFlags `Set ReadFlags', + } -> `CEvent' #}
 foreign import ccall safe "Evdev.chs.h libevdev_next_event"
     libevdevNextEvent :: CDevice -> CUInt -> Ptr CEvent -> IO CInt
 nextEvent :: Device -> Set ReadFlags -> IO Event
@@ -72,81 +191,57 @@ nextEvent dev flags = do
     ptr <- C2HSImp.mallocForeignPtrBytes {#sizeof input_event #}
     err <- C2HSImp.withForeignPtr ptr (libevdevNextEvent (cDevice dev) (convertFlags flags))
     if err/=0 then
+        -- TODO do better by matching err
         ioError (IOError Nothing NoSuchThing "" "couldn't get next event" (Just err)
             (Just $ BS.unpack $ devicePath dev))
     else convertEvent (CEvent ptr)
 
-{#pointer *libevdev as CDevice newtype #}
-convertFlags :: Set ReadFlags -> CUInt
-convertFlags = fromIntegral . foldr ((.|.).fromEnum) 0
-
-enumToCInt :: Enum a => a -> CInt
-enumToCInt = fromIntegral . fromEnum
-{#fun libevdev_grab as ^ { `CDevice', enumToCInt `GrabMode' } -> `Int' #}
-{#enum libevdev_grab_mode as GrabMode { underscoreToCase } deriving (Show) #}
+{#fun libevdev_grab as ^ { `CDevice', convertEnum `GrabMode' } -> `Int' #}
 grabDevice :: Device -> IO Int
 grabDevice = flip libevdevGrab LibevdevGrab . cDevice
 ungrabDevice :: Device -> IO Int
 ungrabDevice = flip libevdevGrab LibevdevUngrab . cDevice
 
+-- TODO to we extent can we assume name and filepath don't change?
+-- IO exceptions are very possible and should be caught
 newDevice :: RawFilePath -> IO Device
 newDevice path = do
     Fd n <- openFd path ReadOnly Nothing defaultFileFlags
     dev <- {#call libevdev_new #}
     err <- {#call libevdev_set_fd #} dev n
     if err/=0 then
+        -- TODO do better by matching err
+        --error $ BS.unpack path ++ " " ++ show err
         ioError (IOError Nothing IllegalOperation "" "couldn't get device" (Just err) (Just $ BS.unpack path))
     else return $ Device dev path
 
--- TODO add more event types
--- should have time field
-data Event = SyncEvent { evSyncCode :: SyncType }
-           | KeyEvent  { evKeyCode :: Key
-                       , evKeyEventType :: KeyEventType }
-           | MscEvent  { evType :: Int -- TODO use enum
-                       , evCode :: Int
-                       , evValue :: Int }
-           deriving (Show, Eq)
-data Device = Device { cDevice :: CDevice, devicePath :: RawFilePath }
-newtype SyncType = SyncType Int deriving (Show, Eq)
-data KeyEventType =  Released | Pressed | Repeated
-    deriving (Show, Eq, Ord, Enum)
+-- seems to depend entirely on whether enableProperty has been set (which always seems to succeed)
+-- TODO has_event_type/code may be more useful
+{#fun libevdev_has_property as ^ { cDevice `Device', convertEnum `DeviceProperty' } -> `Bool' #}
+deviceHasProperty :: DeviceProperty -> Device -> IO Bool
+deviceHasProperty = flip libevdevHasProperty
+getDeviceProperties :: Device -> IO [DeviceProperty]
+getDeviceProperties dev = filterM (flip deviceHasProperty dev) $ enumerate
+
+{#fun libevdev_enable_property as ^ { cDevice `Device', convertEnum `DeviceProperty' } -> `Bool' #}
+deviceEnableProperty :: DeviceProperty -> Device -> IO Bool
+deviceEnableProperty = fmap not .: flip libevdevEnableProperty
+
+{#fun libevdev_get_name as ^ { cDevice `Device' } -> `String' #}
+getDeviceName :: Device -> IO BS.ByteString
+getDeviceName = fmap BS.pack . libevdevGetName
+
+-- TODO we want an association between event types and Event data constructors (type families?)
+-- otherwise just function Event -> EventType
+{#fun libevdev_has_event_type as ^ { cDevice `Device', convertEnum `EventType' } -> `Bool' #}
+deviceHasKeyEvents :: Device -> IO Bool
+deviceHasKeyEvents dev = libevdevHasEventType dev (EventType {#const EV_KEY #})
 
 
-type EventStream = Stream (Of Event) IO IOException
 
-runOnEvents :: Bool -> (EventStream -> IO ()) -> IO ()
-runOnEvents wait f = do
-    iNot <- initINotify
-    _ <- addWatch iNot [INotify.Create] evDir (void . forkIO . watcher f)
-    mapM_ (forkIO . (f . (readEvents <=< (lift . newDeviceP)))) =<< lsFiles evDir
-    when wait $ forever $ threadDelay maxBound -- apparently people do this
-
-watcher :: (EventStream -> IO ()) -> INotify.Event -> IO ()
-watcher f (INotify.Created False path) = do -- file (not directory) created
-    BS.putStrLn $ "New device found: " <> (evDir </> path) -- TODO shouldn't print - allow callback?
-    handleBoolRetry ((== PermissionDenied) . ioe_type) 100 (f $ readEvents =<< lift (newDeviceP (evDir </> path)))
-watcher _ _ = return ()
-
-readEvents :: MonadIO m => Device -> Stream (Of Event) m IOException
-readEvents dev =
-    let tryIO = try :: IO a -> IO (Either IOException a)
-    in  Streaming.untilRight $ liftIO $ fmap swapEither $ tryIO $ nextEvent dev defaultReadFlags
-
--- retry the action after encountering an exception satisfying p
-handleBoolRetry :: Exception e => (e -> Bool) -> Int -> IO a -> IO a
-handleBoolRetry p t x = handleBool p (const $ threadDelay t >> handleBoolRetry p t x) x
-
--- returns full paths
--- this could be clearer but hey I get to use <*> as the S combinator
-lsFiles :: RawFilePath -> IO [RawFilePath]
-lsFiles = filterM doesFileExist <=< ((fmap . map . combine) <*> listDirectory)
-
-evDir :: RawFilePath
-evDir = "/dev/input"
+-- internal use only
 
 -- newDevice, but also print message if successful
--- IOExceptions are very possible and should be caught
 newDeviceP :: RawFilePath -> IO Device
 newDeviceP path = do
     dev <- newDevice path
@@ -157,3 +252,43 @@ newDeviceP path = do
 swapEither :: Either a b -> Either b a
 swapEither (Left x) = Right x
 swapEither (Right x) = Left x
+rightToMaybe :: Either a b -> Maybe b
+rightToMaybe = \case
+    Left _ -> Nothing
+    Right x -> Just x
+
+-- retry the action after encountering an exception satisfying p
+handleBoolRetry :: Exception e => (e -> Bool) -> Int -> IO a -> IO a
+handleBoolRetry p t x = handleBool p (const $ threadDelay t >> handleBoolRetry p t x) x
+
+-- Lists files only, and returns full paths.
+lsFiles :: RawFilePath -> IO [RawFilePath]
+lsFiles = filterM doesFileExist <=< ((fmap . map . combine) <*> listDirectory)
+
+evdevDir :: RawFilePath
+evdevDir = "/dev/input"
+
+--filterM (deviceHasKeyEvents <=< newDevice .  (evdevDir </>) . ("event" <>) . BS.pack . show) [1..20]
+
+-- streaming stuff - move to higher-level API
+
+type EventStream = Stream (Of Event) IO IOException
+
+--TODO a merged stream would also be useful (perhaps more so)
+runOnEvents :: (EventStream -> IO ()) -> IO ()
+runOnEvents f = do
+    iNot <- initINotify
+    _ <- addWatch iNot [INotify.Create] evdevDir (void . forkIO . watcher f)
+    mapM_ (forkIO . (f . (readEvents <=< (lift . newDeviceP)))) =<< lsFiles evdevDir
+    where
+        -- Acts only when file (not directory) created.
+        watcher :: (EventStream -> IO ()) -> INotify.Event -> IO ()
+        watcher f (INotify.Created False path) = do
+            BS.putStrLn $ "New device found: " <> (evdevDir </> path)
+            handleBoolRetry ((== PermissionDenied) . ioe_type) 100 (f $ readEvents =<< lift (newDeviceP (evdevDir </> path)))
+        watcher _ _ = return ()
+
+readEvents :: MonadIO m => Device -> Stream (Of Event) m IOException
+readEvents dev =
+    let tryIO = try :: IO a -> IO (Either IOException a)
+    in  Streaming.untilRight $ liftIO $ fmap swapEither $ tryIO $ nextEvent dev defaultReadFlags
