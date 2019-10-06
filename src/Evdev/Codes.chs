@@ -1,10 +1,6 @@
 module Evdev.Codes where
 
-#include <linux/input.h>
-
-{- Contains all constants from input-event-codes.h, except the event types. -}
-
--- name key/button
+#include <linux/input-event-codes.h>
 
 {#enum define DeviceProperty {
     INPUT_PROP_POINTER as InputPropPointer,
@@ -14,6 +10,21 @@ module Evdev.Codes where
     INPUT_PROP_TOPBUTTONPAD as InputPropTopbuttonpad,
     INPUT_PROP_POINTING_STICK as InputPropPointingStick,
     INPUT_PROP_ACCELEROMETER as InputPropAccelerometer}
+    deriving (Bounded, Eq, Ord, Read, Show) #}
+
+{#enum define EventType {
+    EV_SYN as EvSyn,
+    EV_KEY as EvKey,
+    EV_REL as EvRel,
+    EV_ABS as EvAbs,
+    EV_MSC as EvMsc,
+    EV_SW as EvSw,
+    EV_LED as EvLed,
+    EV_SND as EvSnd,
+    EV_REP as EvRep,
+    EV_FF as EvFf,
+    EV_PWR as EvPwr,
+    EV_FF_STATUS as EvFfStatus}
     deriving (Bounded, Eq, Ord, Read, Show) #}
 
 {#enum define SyncEventType {
@@ -666,7 +677,7 @@ module Evdev.Codes where
     LED_CHARGING as LedCharging}
     deriving (Bounded, Eq, Ord, Read, Show) #}
 
-{#enum define AutorepeatEventType {
+{#enum define RepeatEventType {
     REP_DELAY as RepDelay,
     REP_PERIOD as RepPeriod}
     deriving (Bounded, Eq, Ord, Read, Show) #}

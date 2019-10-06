@@ -1,11 +1,13 @@
 * Documentation
 ** Get listed under 'bindings' at https://www.freedesktop.org/software/libevdev/doc/latest/
 ** note at least that some Enum instances are odd
+** haddock
 *** gaps, and non-injectivity of fromEnum
 
 * Primed versions of functions to allow greater flexibility
-** newDevice
-** readEvents
+** allowing callbacks for eg. when new device found
+*** newDevice
+*** readEvents
 
 * Module separation
 ** Namespace (large enums)
@@ -22,16 +24,25 @@
 
 * remove some of the weirder dependencies
 
-* check haskell int is at least as big is all the C ones
-
 * low-level (non-c2hs) FFI stuff
 ** add functionality to c2hs and PR
 *** getTime (nested structs)
 *** nextEvent ('+' without discarding return value)
 
-* all functionality of old evdev haskell library
-** device name
-
 * FF, FFStatus, PWR
 ** find documentation on codes
 ** test
+
+* cleanup
+** libevdev_free and closing fd
+
+* timeout / backoff on handleBoolRetry
+
+* blocking / sudo issue
+
+* we want an association between event types and Event data constructors (type families? DataKinds?)
+** otherwise just function Event -> EventType
+
+** showTime in Show Event is a real hack
+
+* direct (Int -> Bytestring) for prettyEvent (bytestring-show package pulls in an awful lot of dependencies)
