@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Evdev.Stream where
 
 import Control.Concurrent
@@ -29,7 +31,7 @@ readEvents :: IsStream t => Device -> t IO Event
 readEvents dev = serially $ unfoldrM' $ fmap rightToMaybe $ tryIO $ nextEvent dev defaultReadFlags
 
 readEventsMany :: IsStream t => AsyncT IO Device -> t IO (Device, Event)
-readEventsMany = asyncly . join . (S.map $ \d -> (S.map (d,) $ readEvents d))
+readEventsMany = asyncly . join . S.map (\d -> S.map (d,) $ readEvents d)
 
 makeDevices :: (Functor (t IO), IsStream t) => t IO RawFilePath -> t IO Device
 makeDevices = S.mapMaybeM maybeNewDevice
