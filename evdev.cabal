@@ -22,7 +22,7 @@ library
                        Evdev.Stream
   hs-source-dirs:      src
   ghc-options:         -Wall
-  build-depends:       base                 >= 4.13.0 && < 4.14,
+  build-depends:       base                 >= 4.12.0 && < 4.14,
                        bytestring           >= 0.10.9 && < 0.11,
                        composition          >= 1.0.2 && < 1.1,
                        containers           >= 0.6.2 && < 0.7,
