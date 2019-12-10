@@ -3,7 +3,7 @@ name:                evdev
 version:             0.1.0.0
 author:              George Thomas
 maintainer:          George Thomas
-description:         Allows use of the linux event device interface, with an optional high-level Streamly API.
+description:         Enables access to the linux event device interface, with an optional high-level Streamly-based API.
 synopsis:            Bindings to libevdev
 homepage:            https://github.com/georgefst/evdev
 license:             BSD-3-Clause
