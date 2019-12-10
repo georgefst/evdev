@@ -1,4 +1,32 @@
-module Evdev where
+module Evdev (
+    pattern SyncEvent,
+    pattern KeyEvent,
+    pattern RelativeEvent,
+    pattern AbsoluteEvent,
+    pattern MiscEvent,
+    pattern SwitchEvent,
+    pattern LEDEvent,
+    pattern SoundEvent,
+    pattern RepeatEvent,
+    pattern ForceFeedbackEvent,
+    pattern PowerEvent,
+    pattern ForceFeedbackStatusEvent,
+    prettyEvent,
+    defaultReadFlags,
+    grabDevice,
+    ungrabDevice,
+    nextEvent,
+    newDevice,
+    maybeNewDevice,
+    evdevDir,
+    getDeviceName,
+    Device (devicePath),
+    Event,
+    EventCode(..),
+    EventValue(..),
+    KeyEventType(..),
+    ReadFlags (..),
+) where
 
 import Control.Exception
 import Data.Int
@@ -6,6 +34,7 @@ import Data.List.Extra
 import Data.Either.Combinators
 import Data.Time.Clock
 import Data.Tuple.Extra
+import Safe
 
 import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as BS
@@ -16,6 +45,7 @@ import Foreign.C.Error (Errno(Errno),errnoToIOError)
 import System.Posix.ByteString (RawFilePath)
 
 import qualified Evdev.LowLevel as LL
+import Evdev.LowLevel (ReadFlags(..))
 import Evdev.Codes
 
 -- stores path that was originally used, as it seems impossible to recover this later
@@ -49,10 +79,10 @@ prettyEvent x = showTime (evTime x) ++ ":" ++ " " ++ case x of
         _ -> error $ "show: unrecognised Event: " ++ unwords
             [showE $ evType x, showE $ evCode x, showE $ evValue x]
         where
-            showE :: Enum e => e -> String
+            showE :: Enum x => x -> String
             showE = show . fromEnum
             showTime t = -- fix time string to always have same length after '.', by adding 0s
-                let (n,r) = second tail $ span (/= '.') $ init $ show t
+                let (n,r) = second tailSafe $ span (/= '.') $ initSafe $ show t
                 in  n ++ "." ++ take 6 (r ++ ['0'..]) ++ "s"
 
 pattern SyncEvent :: SyncEventType -> Event
@@ -100,18 +130,18 @@ data KeyEventType
     | Repeated
     deriving (Enum, Eq, Ord, Read, Show)
 
-convertFlags :: Set LL.ReadFlags -> CUInt
+convertFlags :: Set ReadFlags -> CUInt
 convertFlags = fromIntegral . foldr ((.|.) . fromEnum) 0
 
-defaultReadFlags :: Set LL.ReadFlags
-defaultReadFlags = [LL.Normal,LL.Blocking]
+defaultReadFlags :: Set ReadFlags
+defaultReadFlags = [Normal,Blocking]
 
 grabDevice :: Device -> IO ()
 grabDevice = grabDevice' LL.LibevdevGrab
 ungrabDevice :: Device -> IO ()
 ungrabDevice = grabDevice' LL.LibevdevUngrab
 
-nextEvent :: Device -> Set LL.ReadFlags -> IO Event
+nextEvent :: Device -> Set ReadFlags -> IO Event
 nextEvent dev flags = do
     (t,c,v,time) <- LL.convertEvent =<<
         throwCErrors "nextEvent" (devicePath dev) (LL.nextEvent (cDevice dev) (convertFlags flags))
@@ -131,11 +161,11 @@ evdevDir = "/dev/input"
 getDeviceName :: Device -> IO ByteString
 getDeviceName = fmap BS.pack . LL.deviceName . cDevice
 
-tryIO :: IO a -> IO (Either IOException a)
-tryIO = try
-
 
 {- Util -}
+
+tryIO :: IO a -> IO (Either IOException a)
+tryIO = try
 
 -- run the action, throwing an error if the C errno is not 0
 throwCErrors :: String -> RawFilePath -> IO (Errno, a) -> IO a
