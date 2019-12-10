@@ -7,16 +7,9 @@ module Evdev.Stream (
     readEventsMany,
     ) where
 
-import Control.Concurrent
-import Control.Exception.Extra
 import Control.Monad
-import Control.Monad.IO.Class
-import Data.Either.Combinators
 
-import GHC.IO.Exception (IOErrorType(PermissionDenied),ioe_type)
 import RawFilePath.Directory (doesFileExist,listDirectory)
-import System.INotify (addWatch,initINotify)
-import qualified System.INotify as I
 import System.Posix.ByteString (RawFilePath)
 import System.Posix.FilePath ((</>))
 
