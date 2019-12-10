@@ -16,7 +16,7 @@ import Foreign.C.Error (Errno(Errno),errnoToIOError)
 import System.Posix.ByteString (RawFilePath)
 
 import qualified Evdev.LowLevel as LL
-import Evdev.Codes --TODO combine modules?
+import Evdev.Codes
 
 -- stores path that was originally used, as it seems impossible to recover this later
 -- We don't allow the user to access the underlying low-level C device.
