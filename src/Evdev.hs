@@ -35,18 +35,18 @@ data Event = Event {
 prettyEvent :: Event -> String
 prettyEvent x = showTime (evTime x) ++ ":" ++ " " ++ case x of
         SyncEvent t -> show t
-        KeyEvent k t -> intercalate " " [show k, show t]
-        RelativeEvent c v -> intercalate " " [show c, showE v]
-        AbsoluteEvent c v -> intercalate " " [show c, showE v]
-        MiscEvent c v -> intercalate " " [show c, showE v]
-        SwitchEvent c v -> intercalate " " [show c, showE v]
-        LEDEvent c v -> intercalate " " [show c, showE v]
-        SoundEvent c v -> intercalate " " [show c, showE v]
-        RepeatEvent c v -> intercalate " " [show c, showE v]
-        ForceFeedbackEvent c v -> intercalate " " [showE c, showE v]
-        PowerEvent c v -> intercalate " " [showE c, showE v]
-        ForceFeedbackStatusEvent c v -> intercalate " " [showE c, showE v]
-        _ -> error $ "show: unrecognised Event: " ++ intercalate " "
+        KeyEvent k t -> unwords [show k, show t]
+        RelativeEvent c v -> unwords [show c, showE v]
+        AbsoluteEvent c v -> unwords [show c, showE v]
+        MiscEvent c v -> unwords [show c, showE v]
+        SwitchEvent c v -> unwords [show c, showE v]
+        LEDEvent c v -> unwords [show c, showE v]
+        SoundEvent c v -> unwords [show c, showE v]
+        RepeatEvent c v -> unwords [show c, showE v]
+        ForceFeedbackEvent c v -> unwords [showE c, showE v]
+        PowerEvent c v -> unwords [showE c, showE v]
+        ForceFeedbackStatusEvent c v -> unwords [showE c, showE v]
+        _ -> error $ "show: unrecognised Event: " ++ unwords
             [showE $ evType x, showE $ evCode x, showE $ evValue x]
         where
             showE :: Enum e => e -> String
