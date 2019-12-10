@@ -22,12 +22,11 @@
 * names
 ** should I add extra capitals to #define'd constants
 
-* remove some of the weirder dependencies
-
 * low-level (non-c2hs) FFI stuff
 ** add functionality to c2hs and PR
 *** getTime (nested structs)
 *** nextEvent ('+' without discarding return value)
+*** default marshaller for ByteString (LowLevel.deviceName)
 
 * FF, FFStatus, PWR
 ** find documentation on codes
@@ -46,3 +45,9 @@
 ** showTime in Show Event is a real hack
 
 * direct (Int -> Bytestring) for prettyEvent (bytestring-show package pulls in an awful lot of dependencies)
+
+proper markdown
+
+github documentation
+
+_ in long numeric literals
