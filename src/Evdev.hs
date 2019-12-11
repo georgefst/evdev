@@ -30,7 +30,6 @@ module Evdev (
 
 import Control.Exception
 import Data.Int
-import Data.List.Extra
 import Data.Either.Combinators
 import Data.Time.Clock
 import Data.Tuple.Extra
