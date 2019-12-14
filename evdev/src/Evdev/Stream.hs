@@ -7,8 +7,6 @@ module Evdev.Stream (
     readEventsMany,
     ) where
 
-import Control.Monad
-
 import RawFilePath.Directory (doesFileExist,listDirectory)
 import System.Posix.ByteString (RawFilePath)
 import System.Posix.FilePath ((</>))
@@ -36,15 +34,5 @@ readEventsMany ds = asyncly $ do
 makeDevices :: (IsStream t, Functor (t IO)) => t IO RawFilePath -> t IO Device
 makeDevices = S.mapMaybeM maybeNewDevice
 
---TODO use Streamly directly
 allDevicePaths :: (IsStream t, Monad (t IO)) => t IO RawFilePath
-allDevicePaths = do
-    fs <- S.yieldM $ lsFiles evdevDir
-    S.fromFoldable fs
-
-
-{- Util -}
-
--- lists files only, and returns full paths.
-lsFiles :: RawFilePath -> IO [RawFilePath]
-lsFiles p = filterM doesFileExist =<< (map (p </>) <$> listDirectory p)
+allDevicePaths = S.filterM doesFileExist $ S.map (evdevDir </>) $ S.fromFoldable =<< S.yieldM (listDirectory evdevDir)
