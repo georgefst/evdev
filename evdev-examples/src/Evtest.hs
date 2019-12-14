@@ -1,10 +1,12 @@
 module Main where
 
 import qualified Data.ByteString.Char8 as BS
+
+import qualified Streamly.Prelude as S
+import Streamly
+
 import Evdev
 import Evdev.Stream
-import qualified Streamly.Prelude as S
-import Streamly 
 
 main :: IO ()
 main = do
