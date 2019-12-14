@@ -51,3 +51,8 @@ proper markdown
 github documentation
 
 _ in long numeric literals
+
+devicePath doesn't show on hackage (maybe export differently)
+
+
+throw errors in makeDevices?

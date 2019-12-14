@@ -1,5 +1,6 @@
 module Evdev.LowLevel where
 
+import Control.Monad.Loops
 import Data.Int
 import Data.Time.Clock
 
@@ -12,6 +13,7 @@ import System.Posix.ByteString (RawFilePath)
 import System.Posix.IO.ByteString (OpenMode(ReadOnly),defaultFileFlags,openFd)
 import System.Posix.Types (Fd(Fd))
 
+#include <errno.h>
 #include <libevdev-1.0/libevdev/libevdev.h>
 #include <linux/input.h>
 
@@ -51,7 +53,7 @@ convertEvent ev = (,,,)
             in  convertTime <$> sec <*> usec
 
 nextEvent :: Device -> CUInt -> IO (Errno, Event)
-nextEvent dev flags = do
+nextEvent dev flags = iterateWhile ((== Errno (-{#const EAGAIN #})) . fst) $ do
     ptr <- mallocForeignPtrBytes {#sizeof input_event #}
     err <- withForeignPtr ptr $ {#call libevdev_next_event #} dev flags
     return (Errno err, Event ptr)
