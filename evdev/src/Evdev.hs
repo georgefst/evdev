@@ -85,31 +85,31 @@ prettyEvent x = showTime (evTime x) ++ ":" ++ " " ++ case x of
                 in  n ++ "." ++ take 6 (r ++ ['0'..]) ++ "s"
 
 pattern SyncEvent :: SyncEventType -> Event
-pattern SyncEvent c <- Event EvSyn (toEnum . fromEnum -> c) _ _
+pattern SyncEvent c <- Event EvSyn (convertEnum -> c) _ _
 
 pattern KeyEvent :: Key -> KeyEventType -> Event
-pattern KeyEvent c v <- Event EvKey (toEnum . fromEnum -> c) (toEnum . fromEnum -> v) _
+pattern KeyEvent c v <- Event EvKey (convertEnum -> c) (convertEnum -> v) _
 
 pattern RelativeEvent :: RelativeAxis -> EventValue -> Event
-pattern RelativeEvent c v <- Event EvRel (toEnum . fromEnum -> c) v _
+pattern RelativeEvent c v <- Event EvRel (convertEnum -> c) v _
 
 pattern AbsoluteEvent :: AbsoluteAxis -> EventValue -> Event
-pattern AbsoluteEvent c v <- Event EvAbs (toEnum . fromEnum -> c) v _
+pattern AbsoluteEvent c v <- Event EvAbs (convertEnum -> c) v _
 
 pattern MiscEvent :: MiscEventType -> EventValue -> Event
-pattern MiscEvent c v <- Event EvMsc (toEnum . fromEnum -> c) v _
+pattern MiscEvent c v <- Event EvMsc (convertEnum -> c) v _
 
 pattern SwitchEvent :: SwitchEventType -> EventValue -> Event
-pattern SwitchEvent c v <- Event EvSw (toEnum . fromEnum -> c) v _
+pattern SwitchEvent c v <- Event EvSw (convertEnum -> c) v _
 
 pattern LEDEvent :: LEDEventType -> EventValue -> Event
-pattern LEDEvent c v <- Event EvLed (toEnum . fromEnum -> c) v _
+pattern LEDEvent c v <- Event EvLed (convertEnum -> c) v _
 
 pattern SoundEvent :: SoundEventType -> EventValue -> Event
-pattern SoundEvent c v <- Event EvSnd (toEnum . fromEnum -> c) v _
+pattern SoundEvent c v <- Event EvSnd (convertEnum -> c) v _
 
 pattern RepeatEvent :: RepeatEventType -> EventValue -> Event
-pattern RepeatEvent c v <- Event EvRep (toEnum . fromEnum -> c) v _
+pattern RepeatEvent c v <- Event EvRep (convertEnum -> c) v _
 
 pattern ForceFeedbackEvent :: EventCode -> EventValue -> Event
 pattern ForceFeedbackEvent c v <- Event EvFf c v _
@@ -176,3 +176,8 @@ throwCErrors loc path x = do
 
 grabDevice' :: LL.GrabMode -> Device -> IO ()
 grabDevice' mode dev = throwCErrors "grabDevice" (devicePath dev) $ LL.grabDevice (cDevice dev) mode
+
+-- obviously this isn't safe in general
+-- we use it only after matching on 'EventType', to get the corresponding 'EventCode' and 'EventValue'
+convertEnum :: (Enum a, Enum b) => a -> b
+convertEnum = toEnum . fromEnum
