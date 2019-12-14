@@ -14,7 +14,7 @@ main = do
         BS.putStrLn $ path <> ":" <> BS.replicate (24 - BS.length path) ' ' <> name
     BS.putStr "Choose device number (s): "
     ns <- BS.words <$> BS.getLine
-    let paths = S.fromFoldable $ map (\n -> evdevDir <> "/event" <> n) ns
+    let paths = S.fromFoldable $ map ((evdevDir <> "/event") <>) ns
     forM' (readEventsMany $ makeDevices paths) $ \(d,e) ->
         BS.putStrLn $ devicePath d <> ": " <> BS.pack (prettyEvent e)
 
