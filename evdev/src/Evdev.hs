@@ -172,7 +172,7 @@ throwCErrors loc path x = do
     (errno, res) <- x
     case errno of
         Errno 0 -> return res
-        Errno errno -> ioError $ errnoToIOError loc (Errno $ abs errno) Nothing (Just $ BS.unpack path)
+        Errno n -> ioError $ errnoToIOError loc (Errno $ abs n) Nothing (Just $ BS.unpack path)
 
 grabDevice' :: LL.GrabMode -> Device -> IO ()
 grabDevice' mode dev = throwCErrors "grabDevice" (devicePath dev) $ LL.grabDevice (cDevice dev) mode
