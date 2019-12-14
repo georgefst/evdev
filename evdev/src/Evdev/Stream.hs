@@ -25,13 +25,13 @@ allEvents = filteredEvents $ const True
 filteredEvents :: (IsStream t, Monad (t IO)) => (Device -> Bool) -> t IO (Device, Event)
 filteredEvents p = readEventsMany $ S.filter p $ makeDevices allDevicePaths
 
-readEvents :: IsStream t => Device -> t IO Event
+readEvents :: Device -> SerialT IO Event
 readEvents dev = S.repeatM $ nextEvent dev defaultReadFlags
 
 readEventsMany :: IsStream t => AsyncT IO Device -> t IO (Device, Event)
 readEventsMany ds = asyncly $ do
     d <- ds
-    S.map (d,) $ readEvents d
+    S.map (d,) $ serially $ readEvents d
 
 makeDevices :: (IsStream t, Functor (t IO)) => t IO RawFilePath -> t IO Device
 makeDevices = S.mapMaybeM maybeNewDevice
