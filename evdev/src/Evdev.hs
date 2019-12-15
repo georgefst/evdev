@@ -38,6 +38,7 @@ import Data.Set (Set)
 import Foreign ((.|.))
 import Foreign.C (CUInt)
 import Foreign.C.Error (Errno(Errno),errnoToIOError)
+import System.Posix.IO.ByteString (fdToHandle)
 import System.Posix.ByteString (RawFilePath)
 
 import qualified Evdev.LowLevel as LL
@@ -140,12 +141,12 @@ ungrabDevice = grabDevice' LL.LibevdevUngrab
 nextEvent :: Device -> Set ReadFlags -> IO Event
 nextEvent dev flags = do
     (t,c,v,time) <- LL.convertEvent =<<
-        throwCErrors "nextEvent" (devicePath dev) (LL.nextEvent (cDevice dev) (convertFlags flags))
+        throwCErrors "nextEvent" (Right dev) (LL.nextEvent (cDevice dev) (convertFlags flags))
     return $ Event (toEnum t) (EventCode c) (EventValue v) time
 
 newDevice :: RawFilePath -> IO Device
 newDevice path = do
-    dev <- throwCErrors "newDevice" path $ LL.newDevice path
+    dev <- throwCErrors "newDevice" (Left path) $ LL.newDevice path
     return $ Device dev path
 
 evdevDir :: RawFilePath
@@ -157,16 +158,22 @@ getDeviceName = fmap BS.pack . LL.deviceName . cDevice
 
 {- Util -}
 
--- run the action, throwing an error if the C errno is not 0
-throwCErrors :: String -> RawFilePath -> IO (Errno, a) -> IO a
-throwCErrors loc path x = do
+-- run the action, throwing a relevant exception if the C errno is not 0
+throwCErrors :: String -> Either ByteString Device -> IO (Errno, a) -> IO a
+throwCErrors func pathOrDev x = do
     (errno, res) <- x
     case errno of
         Errno 0 -> return res
-        Errno n -> ioError $ errnoToIOError loc (Errno $ abs n) Nothing (Just $ BS.unpack path)
+        Errno n -> do
+            (handle,path) <- case pathOrDev of
+                Left path -> return (Nothing,path)
+                Right dev -> do
+                    h <- fdToHandle =<< LL.deviceFd (cDevice dev)
+                    return (Just h, devicePath dev)
+            ioError $ errnoToIOError func (Errno $ abs n) handle (Just $ BS.unpack path)
 
 grabDevice' :: LL.GrabMode -> Device -> IO ()
-grabDevice' mode dev = throwCErrors "grabDevice" (devicePath dev) $ LL.grabDevice (cDevice dev) mode
+grabDevice' mode dev = throwCErrors "grabDevice" (Right dev) $ LL.grabDevice (cDevice dev) mode
 
 -- obviously this isn't safe in general
 -- we use it only after matching on 'EventType', to get the corresponding 'EventCode' and 'EventValue'
