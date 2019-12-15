@@ -18,7 +18,8 @@ module Evdev (
     nextEvent,
     newDevice,
     evdevDir,
-    getDeviceName,
+    deviceName,
+    deviceFd,
     Device (devicePath),
     Event,
     EventCode(..),
@@ -39,7 +40,7 @@ import Foreign ((.|.))
 import Foreign.C (CUInt)
 import Foreign.C.Error (Errno(Errno),errnoToIOError)
 import System.Posix.IO.ByteString (fdToHandle)
-import System.Posix.ByteString (RawFilePath)
+import System.Posix.ByteString (Fd,RawFilePath)
 
 import qualified Evdev.LowLevel as LL
 import Evdev.LowLevel (ReadFlags(..))
@@ -152,8 +153,11 @@ newDevice path = do
 evdevDir :: RawFilePath
 evdevDir = "/dev/input"
 
-getDeviceName :: Device -> IO ByteString
-getDeviceName = fmap BS.pack . LL.deviceName . cDevice
+deviceName :: Device -> IO ByteString
+deviceName = fmap BS.pack . LL.deviceName . cDevice
+
+deviceFd :: Device -> IO Fd
+deviceFd = LL.deviceFd . cDevice
 
 
 {- Util -}
@@ -168,7 +172,7 @@ throwCErrors func pathOrDev x = do
             (handle,path) <- case pathOrDev of
                 Left path -> return (Nothing,path)
                 Right dev -> do
-                    h <- fdToHandle =<< LL.deviceFd (cDevice dev)
+                    h <- fdToHandle =<< deviceFd dev
                     return (Just h, devicePath dev)
             ioError $ errnoToIOError func (Errno $ abs n) handle (Just $ BS.unpack path)
 

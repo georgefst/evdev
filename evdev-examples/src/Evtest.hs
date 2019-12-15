@@ -12,7 +12,7 @@ main :: IO ()
 main = do
     forM' allDevices $ \dev -> do
         let path = devicePath dev
-        name <- getDeviceName dev
+        name <- deviceName dev
         BS.putStrLn $ path <> ":" <> BS.replicate (24 - BS.length path) ' ' <> name
     BS.putStr "Choose device number (s): "
     ns <- BS.words <$> BS.getLine
