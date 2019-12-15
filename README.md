@@ -22,6 +22,8 @@ Getting started
 ---------------
 Your user will need to be a member of the `input` group in order to read from devices. Try `usermod -a -G input [username]`.
 
+If you wish to make use of concurrency, e.g. to use functions like `allEvents`, be sure to pass the option `-threaded` to GHC, in order to enable the threaded runtime.
+
 The [evdev-examples](https://github.com/georgefst/evdev/tree/master/evdev-examples) folder contains a basic `evtest` clone, with the added ability to read events from multiple devices concurrently.
 
 See [Hackage](http://hackage.haskell.org/package/evdev) for further documentation. Full descriptions for each function, datatype etc. will be uploaded in the very near future.
