@@ -20,7 +20,8 @@ module Evdev (
     evdevDir,
     deviceName,
     deviceFd,
-    Device (devicePath),
+    devicePath,
+    Device,
     Event,
     EventCode(..),
     EventValue(..),
@@ -28,19 +29,18 @@ module Evdev (
     ReadFlags (..),
 ) where
 
-import Data.Int
-import Data.Time.Clock
-import Data.Tuple.Extra
-import Safe
-
+import Control.Arrow (second)
 import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as BS
+import Data.Int (Int16,Int32)
 import Data.Set (Set)
+import Data.Time.Clock (DiffTime)
 import Foreign ((.|.))
 import Foreign.C (CUInt)
 import Foreign.C.Error (Errno(Errno),errnoToIOError)
-import System.Posix.IO.ByteString (fdToHandle)
+import Safe (initSafe,tailSafe)
 import System.Posix.ByteString (Fd,RawFilePath)
+import System.Posix.IO.ByteString (fdToHandle)
 
 import qualified Evdev.LowLevel as LL
 import Evdev.LowLevel (ReadFlags(..))

@@ -1,9 +1,8 @@
 module Evdev.LowLevel where
 
-import Control.Monad.Loops
-import Data.Int
-import Data.Time.Clock
-
+import Control.Monad.Loops (iterateWhile)
+import Data.Int (Int16,Int32)
+import Data.Time.Clock (DiffTime,picosecondsToDiffTime)
 import Foreign (Ptr)
 import Foreign.C (CInt,CUInt,CLong)
 import Foreign.C.Error (Errno(Errno))
