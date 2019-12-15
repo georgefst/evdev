@@ -17,7 +17,6 @@ module Evdev (
     ungrabDevice,
     nextEvent,
     newDevice,
-    maybeNewDevice,
     evdevDir,
     getDeviceName,
     Device (devicePath),
@@ -28,9 +27,7 @@ module Evdev (
     ReadFlags (..),
 ) where
 
-import Control.Exception
 import Data.Int
-import Data.Either.Combinators
 import Data.Time.Clock
 import Data.Tuple.Extra
 import Safe
@@ -151,9 +148,6 @@ newDevice path = do
     dev <- throwCErrors "newDevice" path $ LL.newDevice path
     return $ Device dev path
 
-maybeNewDevice :: RawFilePath -> IO (Maybe Device)
-maybeNewDevice = fmap rightToMaybe . tryIO . newDevice
-
 evdevDir :: RawFilePath
 evdevDir = "/dev/input"
 
@@ -162,9 +156,6 @@ getDeviceName = fmap BS.pack . LL.deviceName . cDevice
 
 
 {- Util -}
-
-tryIO :: IO a -> IO (Either IOException a)
-tryIO = try
 
 -- run the action, throwing an error if the C errno is not 0
 throwCErrors :: String -> RawFilePath -> IO (Errno, a) -> IO a

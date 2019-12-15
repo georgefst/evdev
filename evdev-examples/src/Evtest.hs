@@ -10,7 +10,7 @@ import Evdev.Stream
 
 main :: IO ()
 main = do
-    forM' (makeDevices allDevicePaths) $ \dev -> do
+    forM' allDevices $ \dev -> do
         let path = devicePath dev
         name <- getDeviceName dev
         BS.putStrLn $ path <> ":" <> BS.replicate (24 - BS.length path) ' ' <> name
