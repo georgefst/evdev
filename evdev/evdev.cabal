@@ -30,7 +30,6 @@ library
                        time                 ^>= 1.9.3,
                        unix                 ^>= 2.7.2,
                        process              ^>= 1.6.5,
-                       extra                ^>= 1.6.18,
                        hinotify             ^>= 0.4,
                        posix-paths          ^>= 0.2.1,
                        rawfilepath          ^>= 0.2.4,
