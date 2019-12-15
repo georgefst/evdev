@@ -21,6 +21,7 @@ module Evdev (
     deviceName,
     deviceFd,
     devicePath,
+    deviceProperties,
     Device,
     Event,
     EventCode(..),
@@ -30,9 +31,11 @@ module Evdev (
 ) where
 
 import Control.Arrow (second)
+import Control.Monad (filterM)
 import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as BS
 import Data.Int (Int16,Int32)
+import Data.List.Extra (enumerate)
 import Data.Set (Set)
 import Data.Time.Clock (DiffTime)
 import Foreign ((.|.))
@@ -158,6 +161,9 @@ deviceName = fmap BS.pack . LL.deviceName . cDevice
 
 deviceFd :: Device -> IO Fd
 deviceFd = LL.deviceFd . cDevice
+
+deviceProperties :: Device -> IO [DeviceProperty]
+deviceProperties dev = filterM (LL.hasProperty $ cDevice dev) enumerate
 
 
 {- Util -}

@@ -12,6 +12,8 @@ import System.Posix.ByteString (RawFilePath)
 import System.Posix.IO.ByteString (OpenMode(ReadOnly),defaultFileFlags,openFd)
 import System.Posix.Types (Fd(Fd))
 
+import Evdev.Codes
+
 #include <errno.h>
 #include <libevdev-1.0/libevdev/libevdev.h>
 #include <linux/input.h>
@@ -73,6 +75,7 @@ newDevice path = do
 
 {- Simpler functions -}
 
+{#fun libevdev_has_property as hasProperty { `Device', convertEnum `DeviceProperty' } -> `Bool' #}
 {#fun libevdev_get_fd as deviceFd { `Device' } -> `Fd' Fd #}
 {#fun libevdev_get_name as deviceName { `Device' } -> `String' #}
 --TODO should really be ByteString
