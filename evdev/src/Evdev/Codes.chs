@@ -617,7 +617,8 @@ module Evdev.Codes where
     ABS_TOOL_WIDTH as AbsToolWidth,
     ABS_VOLUME as AbsVolume,
     ABS_MISC as AbsMisc,
-    ABS_RESERVED as AbsReserved,
+    -- Was accidentally removed in 4.19: https://patchwork.kernel.org/patch/10715015/
+    0x2e as AbsReserved,
     ABS_MT_SLOT as AbsMtSlot,
     ABS_MT_TOUCH_MAJOR as AbsMtTouchMajor,
     ABS_MT_TOUCH_MINOR as AbsMtTouchMinor,
