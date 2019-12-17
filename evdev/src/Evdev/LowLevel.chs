@@ -50,7 +50,12 @@ convertEvent ev = (,,,)
         getTime ptr =
             let sec, usec :: IO CLong
                 sec = peekByteOff ptr 0
-                usec = peekByteOff ptr {#sizeof __kernel_time_t #}
+-- ideally, should use field alias, but: https://github.com/haskell/c2hs/issues/244
+#if defined(__FreeBSD__)
+                usec = peekByteOff ptr {#offsetof input_event->time.tv_usec #}
+#else
+                usec = peekByteOff ptr {#offsetof input_event->__usec #}
+#endif
             in  convertTime <$> sec <*> usec
 
 nextEvent :: Device -> CUInt -> IO (Errno, Event)
