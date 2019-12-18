@@ -11,3 +11,7 @@
 ## 1.1.0.0 -- 2019-12-16
 
 * Hide LowLevel.
+
+## 1.1.0.1 -- 2019-12-18
+
+* Add `pkgconfig-depends` field to cabal file.
