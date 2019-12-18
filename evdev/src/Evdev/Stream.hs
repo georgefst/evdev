@@ -42,7 +42,7 @@ allEvents = readEventsMany allDevices
 allDevices :: (IsStream t, Monad (t IO)) => t IO Device
 allDevices =
     let maybeNewDevice path = (Just <$> newDevice path) `catchIOError` \err -> do
-            hPrint stderr err --TODO use stderr
+            hPrint stderr err
             return Nothing
         paths = S.filterM doesFileExist $ S.map (evdevDir </>) $ S.fromFoldable =<< S.yieldM (listDirectory evdevDir)
     in  S.mapMaybeM maybeNewDevice paths
