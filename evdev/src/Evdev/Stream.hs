@@ -6,8 +6,7 @@ module Evdev.Stream (
     readEventsMany,
     ) where
 
-import Control.Exception
-import Control.Monad
+import System.IO
 import System.IO.Error
 
 import RawFilePath.Directory (doesFileExist,listDirectory)
@@ -42,6 +41,8 @@ allEvents = readEventsMany allDevices
 -- | All valid devices (in /dev/input).
 allDevices :: (IsStream t, Monad (t IO)) => t IO Device
 allDevices =
-    let maybeNewDevice path = catchJust (guard . isIllegalOperation) (Just <$> newDevice path) (\() -> return Nothing)
+    let maybeNewDevice path = (Just <$> newDevice path) `catchIOError` \err -> do
+            hPrint stderr err --TODO use stderr
+            return Nothing
         paths = S.filterM doesFileExist $ S.map (evdevDir </>) $ S.fromFoldable =<< S.yieldM (listDirectory evdevDir)
     in  S.mapMaybeM maybeNewDevice paths
