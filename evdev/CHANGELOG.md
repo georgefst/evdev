@@ -15,3 +15,8 @@
 ## 1.1.0.1 -- 2019-12-18
 
 * Add `pkgconfig-depends` field to cabal file.
+
+## 1.2.0.0 -- 2019-12-19
+
+* Add `newDevices` stream.
+* More robust error handling when reading from multiple devices.
