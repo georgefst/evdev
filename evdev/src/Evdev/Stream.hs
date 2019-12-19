@@ -108,7 +108,7 @@ unfoldM x = S.unfoldrM (const $ fmap (,undefined) <$> x) undefined
 -- like tryIOError, but also prints the error to stderr
 printIOError :: IO a -> IO (Either IOError a)
 printIOError f = (Right <$> f) `catchIOError` \err -> do
-    hPrint stderr err --TODO buffering issues (overlapping error strings)
+    hPrint stderr err
     return $ Left err
 
 -- variant of printIOError which doesn't care what the exception was
