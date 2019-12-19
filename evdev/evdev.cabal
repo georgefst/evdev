@@ -37,6 +37,8 @@ library
                        streamly             ^>= 0.6.1 || ^>= 0.7,
                        safe                 ^>= 0.3.18,
                        monad-loops          ^>= 0.4.3,
+                       streamly-fsnotify    ^>= 1.0,
+                       paths                ^>= 0.2,
   build-tool-depends:  c2hs:c2hs
   default-language:    Haskell2010
   default-extensions:  FlexibleContexts
