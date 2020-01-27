@@ -23,7 +23,7 @@ module Evdev (
     devicePath,
     deviceProperties,
     Device,
-    Event,
+    Event(..), --TODO provide access to Word16 etc...
     EventCode(..),
     EventValue(..),
     KeyEventType(..),
