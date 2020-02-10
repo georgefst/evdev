@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                evdev
-version:             1.2.0.0
+version:             1.2.0.1
 author:              George Thomas
 maintainer:          George Thomas
 description:         Provides access to the Linux event device interface, with an optional high-level Streamly-based API.
