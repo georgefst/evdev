@@ -1,3 +1,5 @@
+-- | The high-level, stream-based API.
+-- Unless stated otherwise, these functions will throw exceptions if the underlying C calls fail.
 module Evdev.Stream (
     allDevices,
     allEvents,
@@ -34,7 +36,7 @@ readEvents :: Device -> SerialT IO Event
 readEvents dev = S.repeatM $ nextEvent dev defaultReadFlags
 
 -- | Concurrently read events from multiple devices.
--- | If a read fails on one, the exception is printed to stderr and the stream continues to read from the others.
+-- If a read fails on one, the exception is printed to stderr and the stream continues to read from the others.
 readEventsMany :: IsStream t => AsyncT IO Device -> t IO (Device, Event)
 readEventsMany ds = asyncly $ do
     d <- ds
@@ -45,22 +47,26 @@ readEventsMany ds = asyncly $ do
         readEvents' dev = unfoldM $ printIOError' $ nextEvent dev defaultReadFlags
 
 -- | Create devices for all paths in the stream.
--- | Will throw an exception if a path doesn't correspond to a valid input device.
 makeDevices :: IsStream t => t IO RawFilePath -> t IO Device
 makeDevices = S.mapM newDevice
 
--- | All events on all valid devices (in /dev/input).
+-- | All events on all valid devices (in /\/dev\/input/).
+-- Prints any exceptions.
+-- > allEvents == readEventsMany allDevices
 allEvents :: IsStream t => t IO (Device, Event)
 allEvents = readEventsMany allDevices
 
--- | All valid existing devices (in /dev/input).
+--TODO call this 'oldDevices' or 'existingDevices', and have 'allDevices' include 'newDevices'?
+-- | All valid existing devices (in /\/dev\/input/).
+-- If a device can't be initialised for an individual path, then the exception is printed,
+-- and the function continues to try to initialise the others.
 allDevices :: (IsStream t, Monad (t IO)) => t IO Device
 allDevices =
     let paths = S.filterM doesFileExist $ S.map (evdevDir </>) $ S.fromFoldable =<< S.yieldM (listDirectory evdevDir)
     in  S.mapMaybeM (printIOError' . newDevice) paths
 
--- | All new devices created (in /dev/input).
--- | Watches for new file paths (using inotify), and those corresponding to valid devices are added to the stream.
+-- | All new devices created (in /\/dev\/input/).
+-- Watches for new file paths (using \inotify\), and those corresponding to valid devices are added to the stream.
 newDevices :: (IsStream t, Monad (t IO)) => t IO Device
 newDevices =
     let -- 'watching' keeps track of the set of paths which have been added, but don't yet have the right permissions
