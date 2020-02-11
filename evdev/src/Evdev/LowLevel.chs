@@ -49,8 +49,8 @@ convertEvent ev = (,,,)
         getTime :: Ptr Event -> IO DiffTime
         getTime ptr =
             let sec, usec :: IO CLong
-                sec = peekByteOff ptr 0
-                usec = peekByteOff ptr {#sizeof __kernel_time_t #}
+                sec = peekByteOff ptr {#offsetof input_event->time.tv_sec #}
+                usec = peekByteOff ptr {#offsetof input_event->time.tv_usec #}
             in  convertTime <$> sec <*> usec
 
 nextEvent :: Device -> CUInt -> IO (Errno, Event)
