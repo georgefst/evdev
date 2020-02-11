@@ -52,6 +52,7 @@ makeDevices = S.mapM newDevice
 
 -- | All events on all valid devices (in /\/dev\/input/).
 -- Prints any exceptions.
+--
 -- > allEvents == readEventsMany allDevices
 allEvents :: IsStream t => t IO (Device, Event)
 allEvents = readEventsMany allDevices
