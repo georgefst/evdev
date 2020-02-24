@@ -34,12 +34,13 @@ import Control.Arrow (second)
 import Control.Monad (filterM)
 import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as BS
-import Data.Int (Int16,Int32)
+import Data.Int (Int32)
 import Data.List.Extra (enumerate)
 import Data.Set (Set)
-import Data.Time.Clock (DiffTime)
+import Data.Time.Clock (DiffTime,picosecondsToDiffTime)
+import Data.Word (Word16)
 import Foreign ((.|.))
-import Foreign.C (CUInt)
+import Foreign.C (CInt(..),CUInt(..),CUShort(..))
 import Foreign.C.Error (Errno(Errno),errnoToIOError)
 import Safe (initSafe,tailSafe)
 import System.Posix.ByteString (Fd,RawFilePath)
@@ -122,7 +123,7 @@ pattern PowerEvent c v <- Event EvPwr c v _
 pattern ForceFeedbackStatusEvent :: EventCode -> EventValue -> Event
 pattern ForceFeedbackStatusEvent c v <- Event EvFfStatus c v _
 
-newtype EventCode = EventCode Int16 deriving (Enum, Eq, Ord, Read, Show)
+newtype EventCode = EventCode Word16 deriving (Enum, Eq, Ord, Read, Show)
 newtype EventValue = EventValue Int32 deriving (Enum, Eq, Ord, Read, Show)
 
 data KeyEventType
@@ -144,9 +145,10 @@ ungrabDevice = grabDevice' LL.LibevdevUngrab
 
 nextEvent :: Device -> Set ReadFlags -> IO Event
 nextEvent dev flags = do
-    (t,c,v,time) <- LL.convertEvent =<<
-        throwCErrors "nextEvent" (Right dev) (LL.nextEvent (cDevice dev) (convertFlags flags))
-    return $ Event (toEnum t) (EventCode c) (EventValue v) time
+    (CUShort t, CUShort c, CInt v, s, us) <-
+        throwCErrors "nextEvent" (Right dev) $ LL.nextEvent (cDevice dev) (convertFlags flags)
+    return $ Event (convertEnum t) (EventCode c) (EventValue v) $
+        picosecondsToDiffTime $ 1_000_000_000_000 * fromIntegral s + 1_000_000 * fromIntegral us
 
 newDevice :: RawFilePath -> IO Device
 newDevice path = do

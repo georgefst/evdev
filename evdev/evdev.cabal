@@ -44,6 +44,7 @@ library
   default-extensions:  FlexibleContexts
                        GeneralizedNewtypeDeriving
                        LambdaCase
+                       NumericUnderscores
                        OverloadedLists
                        OverloadedStrings
                        PatternSynonyms
