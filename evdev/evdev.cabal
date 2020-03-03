@@ -53,5 +53,5 @@ library
   includes:            libevdev-1.0/libevdev/libevdev.h
                        linux/input.h
                        errno.h
-  extra-libraries:     evdev
+  c-sources:           src-c/evdev-hs.c
   pkgconfig-depends:   libevdev

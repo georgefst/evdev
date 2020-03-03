@@ -23,8 +23,13 @@ import Evdev.Codes
 
 {#enum libevdev_grab_mode as GrabMode { underscoreToCase } deriving (Show) #}
 
---TODO close file decriptor in finalizer aswell somehow?
-{#pointer *libevdev as Device foreign finalizer libevdev_free newtype #}
+{#pointer *libevdev as Device foreign finalizer libevdev_hs_close newtype #}
+--TODO any reason c2hs doesn't allow a haskell function as the finalizer?
+    -- failing that, any reason not to have actual inline c?
+--TODO expose this directly, seeing as the GC makes no guarantees of promptness
+#c
+void libevdev_hs_close(struct libevdev *dev);
+#endc
 
 
 {- Conversions -}
