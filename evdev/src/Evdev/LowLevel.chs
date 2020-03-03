@@ -14,7 +14,7 @@ import Evdev.Codes
 #include <libevdev-1.0/libevdev/libevdev.h>
 #include <linux/input.h>
 
-{#enum libevdev_read_flag as ReadFlags {
+{#enum libevdev_read_flag as ReadFlag {
     LIBEVDEV_READ_FLAG_SYNC as Sync,
     LIBEVDEV_READ_FLAG_NORMAL as Normal,
     LIBEVDEV_READ_FLAG_FORCE_SYNC as ForceSync,

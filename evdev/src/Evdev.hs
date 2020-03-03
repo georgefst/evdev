@@ -27,7 +27,7 @@ module Evdev (
     EventCode(..),
     EventValue(..),
     KeyEventType(..),
-    ReadFlags (..),
+    ReadFlag(..),
 ) where
 
 import Control.Arrow (second)
@@ -47,7 +47,7 @@ import System.Posix.ByteString (Fd,RawFilePath)
 import System.Posix.IO.ByteString (fdToHandle)
 
 import qualified Evdev.LowLevel as LL
-import Evdev.LowLevel (ReadFlags(..))
+import Evdev.LowLevel (ReadFlag(..))
 import Evdev.Codes
 
 -- stores path that was originally used, as it seems impossible to recover this later
@@ -132,10 +132,10 @@ data KeyEventType
     | Repeated
     deriving (Enum, Eq, Ord, Read, Show)
 
-convertFlags :: Set ReadFlags -> CUInt
+convertFlags :: Set ReadFlag -> CUInt
 convertFlags = fromIntegral . foldr ((.|.) . fromEnum) 0
 
-defaultReadFlags :: Set ReadFlags
+defaultReadFlags :: Set ReadFlag
 defaultReadFlags = [Normal,Blocking]
 
 grabDevice :: Device -> IO ()
@@ -143,7 +143,7 @@ grabDevice = grabDevice' LL.LibevdevGrab
 ungrabDevice :: Device -> IO ()
 ungrabDevice = grabDevice' LL.LibevdevUngrab
 
-nextEvent :: Device -> Set ReadFlags -> IO Event
+nextEvent :: Device -> Set ReadFlag -> IO Event
 nextEvent dev flags = do
     (CUShort t, CUShort c, CInt v, s, us) <-
         throwCErrors "nextEvent" (Right dev) $ LL.nextEvent (cDevice dev) (convertFlags flags)
