@@ -1,6 +1,7 @@
 module Evdev.LowLevel where
 
 import Control.Monad.Loops (iterateWhile)
+import Data.ByteString (ByteString,packCString)
 import Foreign (Ptr,allocaBytes)
 import Foreign.C (CInt(..),CUInt(..),CUShort(..),CLong)
 import Foreign.C.Error (Errno(Errno))
@@ -66,9 +67,7 @@ newDevice path = do
 
 {#fun libevdev_has_property as hasProperty { `Device', convertEnum `DeviceProperty' } -> `Bool' #}
 {#fun libevdev_get_fd as deviceFd { `Device' } -> `Fd' Fd #}
-{#fun libevdev_get_name as deviceName { `Device' } -> `String' #}
---TODO should really be ByteString
-
+{#fun libevdev_get_name as deviceName { `Device' } -> `IO ByteString' packCString #}
 
 {- Util -}
 

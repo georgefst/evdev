@@ -31,7 +31,7 @@ module Evdev (
 ) where
 
 import Control.Arrow (second)
-import Control.Monad (filterM)
+import Control.Monad (filterM,join)
 import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as BS
 import Data.Int (Int32)
@@ -159,7 +159,7 @@ evdevDir :: RawFilePath
 evdevDir = "/dev/input"
 
 deviceName :: Device -> IO ByteString
-deviceName = fmap BS.pack . LL.deviceName . cDevice
+deviceName = join . LL.deviceName . cDevice
 
 deviceFd :: Device -> IO Fd
 deviceFd = LL.deviceFd . cDevice
