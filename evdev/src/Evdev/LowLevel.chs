@@ -44,17 +44,15 @@ nextEvent dev flags = allocaBytes {#sizeof input_event #} $ \evPtr ->
 
 {#fun libevdev_grab { `Device', `GrabMode' } -> `Errno' Errno #}
 grabDevice :: Device -> GrabMode -> IO (Errno, ())
-grabDevice dev mode = do
-    err <- libevdev_grab dev mode
-    return (err, ())
+grabDevice = fmap (,()) .: libevdev_grab
 
 {#fun libevdev_new {} -> `Device' #}
-{#fun libevdev_set_fd { `Device', `CInt' } -> `Errno' Errno #}
+{#fun libevdev_set_fd { `Device', unFd `Fd' } -> `Errno' Errno #}
 newDevice :: RawFilePath -> IO (Errno, Device)
 newDevice path = do
-    Fd n <- openFd path ReadOnly Nothing $ defaultFileFlags
+    fd <- openFd path ReadOnly Nothing defaultFileFlags
     dev <- libevdev_new
-    err <- libevdev_set_fd dev n
+    err <- libevdev_set_fd dev fd
     return (err, dev)
 
 
@@ -68,5 +66,11 @@ newDevice path = do
 
 {- Util -}
 
-convertEnum :: (Enum a, Integral b) => a -> b
+convertEnum :: DeviceProperty -> CUInt
 convertEnum = fromIntegral . fromEnum
+
+(.:) :: (c -> d) -> (a -> b -> c) -> a -> b -> d
+(.:) = (.) . (.)
+
+unFd :: Fd -> CInt
+unFd (Fd n) = n
