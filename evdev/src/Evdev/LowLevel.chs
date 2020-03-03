@@ -51,6 +51,7 @@ nextEvent dev flags = allocaBytes {#sizeof input_event #} $ \evPtr ->
 grabDevice :: Device -> GrabMode -> IO (Errno, ())
 grabDevice = fmap (,()) .: libevdev_grab
 
+--TODO use 'libevdev_new_from_fd' when https://github.com/haskell/c2hs/issues/236 fixed
 {#fun libevdev_new {} -> `Device' #}
 {#fun libevdev_set_fd { `Device', unFd `Fd' } -> `Errno' Errno #}
 newDevice :: RawFilePath -> IO (Errno, Device)

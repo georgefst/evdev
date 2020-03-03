@@ -187,6 +187,14 @@ throwCErrors func pathOrDev x = do
 grabDevice' :: LL.GrabMode -> Device -> IO ()
 grabDevice' mode dev = throwCErrors "grabDevice" (Right dev) $ LL.grabDevice (cDevice dev) mode
 
+--TODO ensure all uses are safe
+    -- really, fromEnum should be :: e -> Integer
+    -- and toEnum :: Integral a => a -> Maybe e
+    -- the issues with Enum are great enough that it may be worth considering using something more bespoke than c2hs
+    -- or it could be worth a PR
+        -- auto-generate safe *toInt/*fromInt based on the current logic
+        -- then implement Enum instance in terms of those
+    -- note that we also use to/from-Enum in LowLevel
 -- obviously this isn't safe in general
 -- we use it only after matching on 'EventType', to get the corresponding 'EventCode' and 'EventValue'
 convertEnum :: (Enum a, Enum b) => a -> b
