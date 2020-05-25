@@ -1,0 +1,8 @@
+cradle:
+  multi:
+    - path: "./evdev/src"
+      config: {cradle: {cabal: {component: "lib:evdev"}}}
+    - path: "./evdev-examples/src"
+      config: {cradle: {cabal: {component: "exe:evtest"}}}
+    - path: "."
+      config: {cradle: {none: }}
