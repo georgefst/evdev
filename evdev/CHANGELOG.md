@@ -20,3 +20,8 @@
 
 * Add `newDevices` stream.
 * More robust error handling when reading from multiple devices.
+
+## 1.3.0.0 -- 2020-03-03
+
+* Fix memory management issues and file descriptor leaks.
+* Rename 'ReadFlags' to 'ReadFlag' as the type clearly represents just one flag.
