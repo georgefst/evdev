@@ -26,9 +26,10 @@ library
         Evdev.LowLevel
     hs-source-dirs: src
     includes:
-        libevdev-1.0/libevdev/libevdev.h
-        linux/input.h
         errno.h
+        libevdev-1.0/libevdev/libevdev.h
+        linux/input-event-codes.h
+        linux/input.h
     c-sources:
         src-c/evdev-hs.c
     pkgconfig-depends:
