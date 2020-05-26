@@ -1,8 +1,6 @@
 Haskell evdev library
 =====================
 
-http://hackage.haskell.org/package/evdev
-
 This library provides access to the Linux [evdev](https://en.wikipedia.org/wiki/Evdev) interface, for reading input events from devices. It uses [c2hs](https://github.com/haskell/c2hs/wiki/User-Guide)-generated bindings to [libevdev](https://www.freedesktop.org/wiki/Software/libevdev/), which should be available on almost any modern Linux distro.
 
 Modules
