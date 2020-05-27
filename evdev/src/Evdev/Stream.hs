@@ -18,11 +18,9 @@ import System.IO.Error
 import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.ByteString.Char8 as BS
-import RawFilePath.Directory (doesFileExist,listDirectory)
+import RawFilePath.Directory (RawFilePath,doesFileExist,listDirectory)
 import qualified Streamly.FSNotify as N
-import Streamly.FSNotify (EventPredicate(EventPredicate),FSEntryType(NotDir),watchDirectory)
-import System.Path (Absolute,Path,fromFilePath,toFilePath)
-import System.Posix.ByteString (RawFilePath)
+import Streamly.FSNotify (FSEntryType(NotDir),watchDirectory)
 import System.Posix.FilePath ((</>))
 
 import Streamly
@@ -66,20 +64,21 @@ allDevices =
     let paths = S.filterM doesFileExist $ S.map (evdevDir </>) $ S.fromFoldable =<< S.yieldM (listDirectory evdevDir)
     in  S.mapMaybeM (printIOError' . newDevice) paths
 
+--TODO perhaps streamly-fsnotify ought to use RawFilePath?
 -- | All new devices created (in /\/dev\/input/).
 -- Watches for new file paths (using \inotify\), and those corresponding to valid devices are added to the stream.
 newDevices :: (IsStream t, Monad (t IO)) => t IO Device
 newDevices =
     let -- 'watching' keeps track of the set of paths which have been added, but don't yet have the right permissions
-        watch :: Set (Path Absolute) -> N.Event -> IO (Maybe Device, Set (Path Absolute))
+        watch :: Set RawFilePath -> N.Event -> IO (Maybe Device, Set RawFilePath)
         watch watching = \case
-            N.Added p _ NotDir ->
+            N.Added (BS.pack -> p) _ NotDir ->
                 tryNewDevice p <&> \case
                     Right d -> -- success - return new device
                         (Just d, watching)
                     Left e -> -- fail - if it's only a permission error then watch for changes on device
                         (Nothing, applyWhen (isPermissionError e) (Set.insert p) watching)
-            N.Modified p _ NotDir ->
+            N.Modified (BS.pack -> p) _ NotDir ->
                 if p `elem` watching then
                     tryNewDevice p <&> \case
                         Right d -> -- success - no longer watch for changes
@@ -88,12 +87,12 @@ newDevices =
                             (Nothing, watching)
                 else -- this isn't an event we care about
                     return (Nothing, watching)
-            N.Removed p _ NotDir -> -- device is gone - no longer watch for changes
+            N.Removed (BS.pack -> p) _ NotDir -> -- device is gone - no longer watch for changes
                 return (Nothing, Set.delete p watching)
             _ -> return (Nothing, watching)
-        tryNewDevice = printIOError . newDevice . BS.pack . toFilePath
+        tryNewDevice = printIOError . newDevice
     in do
-        (_,es) <- S.yieldM $ watchDirectory (fromFilePath $ BS.unpack evdevDir) (EventPredicate $ const True)
+        (_,es) <- S.yieldM $ watchDirectory (BS.unpack evdevDir) N.everything
         scanMaybe watch [] es
 
 
