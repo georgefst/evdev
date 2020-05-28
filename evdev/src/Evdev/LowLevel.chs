@@ -65,14 +65,15 @@ newDevice path = do
 
 {- Simpler functions -}
 
-{#fun libevdev_has_property as hasProperty { `Device', convertEnum `DeviceProperty' } -> `Bool' #}
+{#fun libevdev_has_property as hasProperty { `Device', devPropToInt `DeviceProperty' } -> `Bool' #}
 {#fun libevdev_get_fd as deviceFd { `Device' } -> `Fd' Fd #}
 {#fun libevdev_get_name as deviceName { `Device' } -> `IO ByteString' packCString #}
 
+
 {- Util -}
 
-convertEnum :: DeviceProperty -> CUInt
-convertEnum = fromIntegral . fromEnum
+devPropToInt :: DeviceProperty -> CUInt
+devPropToInt = fromIntegral . fromEnum
 
 (.:) :: (c -> d) -> (a -> b -> c) -> a -> b -> d
 (.:) = (.) . (.)
