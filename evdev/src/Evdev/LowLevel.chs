@@ -2,8 +2,11 @@ module Evdev.LowLevel where
 
 import Control.Monad.Loops (iterateWhile)
 import Data.ByteString (ByteString,packCString)
+import Data.Coerce (coerce)
+import Data.Int (Int32,Int64)
+import Data.Word (Word16)
 import Foreign (Ptr,allocaBytes)
-import Foreign.C (CInt(..),CUInt(..),CUShort(..),CLong)
+import Foreign.C (CInt(..),CLong(..),CUInt(..),CUShort(..))
 import Foreign.C.Error (Errno(Errno))
 import System.Posix.ByteString (RawFilePath)
 import System.Posix.IO.ByteString (OpenMode(ReadOnly),defaultFileFlags,openFd)
@@ -32,20 +35,35 @@ import Evdev.Codes
 void libevdev_hs_close(struct libevdev *dev);
 #endc
 
+data CEvent = CEvent
+    { cEventType :: Word16
+    , cEventCode :: Word16
+    , cEventValue :: Int32
+    , cEventTime :: CTimeVal
+    }
+    deriving (Eq, Ord, Read, Show)
+
+data CTimeVal = CTimeVal
+    { tvSec :: Int64
+    , tvUsec :: Int64
+    }
+    deriving (Eq, Ord, Read, Show)
+
 
 {- Conversions -}
 
 {#fun libevdev_next_event { `Device', `CUInt', `Ptr ()' } -> `Errno' Errno #}
-nextEvent :: Device -> CUInt -> IO (Errno, (CUShort,CUShort,CInt,CLong,CLong)) --TODO not CLong on all platforms
+nextEvent :: Device -> CUInt -> IO (Errno, CEvent)
 nextEvent dev flags = allocaBytes {#sizeof input_event #} $ \evPtr ->
     (,) <$> iterateWhile (== Errno (-{#const EAGAIN #})) (libevdev_next_event dev flags evPtr)
-        <*> (
-            (,,,,)
-            <$> {#get input_event->type #} evPtr
-            <*> {#get input_event->code #} evPtr
-            <*> {#get input_event->value #} evPtr
-            <*> {#get input_event->time.tv_sec #} evPtr
-            <*> {#get input_event->time.tv_usec #} evPtr
+        <*> ( CEvent
+            <$> (coerce <$> {#get input_event->type #} evPtr)
+            <*> (coerce <$> {#get input_event->code #} evPtr)
+            <*> (coerce <$> {#get input_event->value #} evPtr)
+            <*> ( CTimeVal
+                <$> (coerce <$> {#get input_event->time.tv_sec #} evPtr)
+                <*> (coerce <$> {#get input_event->time.tv_usec #} evPtr)
+            )
         )
 
 {#fun libevdev_grab { `Device', `GrabMode' } -> `Errno' Errno #}

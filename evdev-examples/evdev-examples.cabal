@@ -13,6 +13,7 @@ executable evtest
         base,
         bytestring,
         evdev,
+        pretty-simple,
         streamly >= 0.7,
     ghc-options:
         -threaded

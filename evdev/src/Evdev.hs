@@ -1,17 +1,4 @@
 module Evdev (
-    pattern SyncEvent,
-    pattern KeyEvent,
-    pattern RelativeEvent,
-    pattern AbsoluteEvent,
-    pattern MiscEvent,
-    pattern SwitchEvent,
-    pattern LEDEvent,
-    pattern SoundEvent,
-    pattern RepeatEvent,
-    pattern ForceFeedbackEvent,
-    pattern PowerEvent,
-    pattern ForceFeedbackStatusEvent,
-    prettyEvent,
     defaultReadFlags,
     grabDevice,
     ungrabDevice,
@@ -23,31 +10,38 @@ module Evdev (
     devicePath,
     deviceProperties,
     Device,
-    Event(..), --TODO provide access to Word16 etc...
+    Event(..),
+    EventData(..),
+    LL.CEvent(..),
+    LL.CTimeVal(..),
+    toCEvent,
+    fromCEvent,
     EventCode(..),
     EventValue(..),
     KeyEventType(..),
-    ReadFlag(..),
+    LL.ReadFlag(..),
 ) where
 
-import Control.Arrow (second)
+import Control.Arrow ((&&&))
 import Control.Monad (filterM,join)
 import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as BS
 import Data.Int (Int32)
 import Data.List.Extra (enumerate)
+import Data.Map ((!?), Map)
+import qualified Data.Map as Map
+import Data.Maybe (fromMaybe)
+import Data.Ratio ((%))
 import Data.Set (Set)
-import Data.Time.Clock (DiffTime,picosecondsToDiffTime)
+import Data.Time.Clock (DiffTime)
 import Data.Word (Word16)
 import Foreign ((.|.))
-import Foreign.C (CInt(..),CUInt(..),CUShort(..))
+import Foreign.C (CUInt)
 import Foreign.C.Error (Errno(Errno),errnoToIOError)
-import Safe (initSafe,tailSafe)
 import System.Posix.ByteString (Fd,RawFilePath)
 import System.Posix.IO.ByteString (fdToHandle)
 
 import qualified Evdev.LowLevel as LL
-import Evdev.LowLevel (ReadFlag(..))
 import Evdev.Codes
 
 -- stores path that was originally used, as it seems impossible to recover this later
@@ -56,99 +50,99 @@ data Device = Device { cDevice :: LL.Device, devicePath :: RawFilePath }
 instance Show Device where
     show = show . devicePath
 
-data Event = Event {
-    evType :: EventType,
-    evCode :: EventCode,
-    evValue :: EventValue,
-    evTime :: DiffTime}
+data Event = Event
+    { eventData :: EventData
+    , eventTime :: DiffTime
+    }
     deriving (Eq, Ord, Show)
 
--- aligns with the pattern synonyms below
-prettyEvent :: Event -> String
-prettyEvent x = showTime (evTime x) ++ ":" ++ " " ++ case x of
-        SyncEvent t -> show t
-        KeyEvent k t -> unwords [show k, show t]
-        RelativeEvent c v -> unwords [show c, showE v]
-        AbsoluteEvent c v -> unwords [show c, showE v]
-        MiscEvent c v -> unwords [show c, showE v]
-        SwitchEvent c v -> unwords [show c, showE v]
-        LEDEvent c v -> unwords [show c, showE v]
-        SoundEvent c v -> unwords [show c, showE v]
-        RepeatEvent c v -> unwords [show c, showE v]
-        ForceFeedbackEvent c v -> unwords [showE c, showE v]
-        PowerEvent c v -> unwords [showE c, showE v]
-        ForceFeedbackStatusEvent c v -> unwords [showE c, showE v]
-        _ -> error $ "show: unrecognised Event: " ++ unwords
-            [showE $ evType x, showE $ evCode x, showE $ evValue x]
-        where
-            showE :: Enum x => x -> String
-            showE = show . fromEnum
-            showTime t = -- fix time string to always have same length after '.', by adding 0s
-                let (n,r) = second tailSafe $ span (/= '.') $ initSafe $ show t
-                in  n ++ "." ++ take 6 (r ++ ['0'..]) ++ "s"
+--TODO name?
+data EventData
+    = SyncEvent SyncEventType
+    | KeyEvent Key KeyEventType
+    | RelativeEvent RelativeAxis EventValue
+    | AbsoluteEvent AbsoluteAxis EventValue
+    | MiscEvent MiscEventType EventValue
+    | SwitchEvent SwitchEventType EventValue
+    | LEDEvent LEDEventType EventValue
+    | SoundEvent SoundEventType EventValue
+    | RepeatEvent RepeatEventType EventValue
+    | ForceFeedbackEvent EventCode EventValue
+    | PowerEvent EventCode EventValue
+    | ForceFeedbackStatusEvent EventCode EventValue
+    | UnknownEvent Word16 EventCode EventValue {- ^ We include this primarily so that 'fromCEvent' can be well-defined -
+        let us know if you ever actually see one emitted by a device, as it would likely
+        indicate a shortcoming in the library. -}
+    deriving (Eq, Ord, Read, Show)
 
-pattern SyncEvent :: SyncEventType -> Event
-pattern SyncEvent c <- Event EvSyn (convertEnum -> c) _ _
-
-pattern KeyEvent :: Key -> KeyEventType -> Event
-pattern KeyEvent c v <- Event EvKey (convertEnum -> c) (convertEnum -> v) _
-
-pattern RelativeEvent :: RelativeAxis -> EventValue -> Event
-pattern RelativeEvent c v <- Event EvRel (convertEnum -> c) v _
-
-pattern AbsoluteEvent :: AbsoluteAxis -> EventValue -> Event
-pattern AbsoluteEvent c v <- Event EvAbs (convertEnum -> c) v _
-
-pattern MiscEvent :: MiscEventType -> EventValue -> Event
-pattern MiscEvent c v <- Event EvMsc (convertEnum -> c) v _
-
-pattern SwitchEvent :: SwitchEventType -> EventValue -> Event
-pattern SwitchEvent c v <- Event EvSw (convertEnum -> c) v _
-
-pattern LEDEvent :: LEDEventType -> EventValue -> Event
-pattern LEDEvent c v <- Event EvLed (convertEnum -> c) v _
-
-pattern SoundEvent :: SoundEventType -> EventValue -> Event
-pattern SoundEvent c v <- Event EvSnd (convertEnum -> c) v _
-
-pattern RepeatEvent :: RepeatEventType -> EventValue -> Event
-pattern RepeatEvent c v <- Event EvRep (convertEnum -> c) v _
-
-pattern ForceFeedbackEvent :: EventCode -> EventValue -> Event
-pattern ForceFeedbackEvent c v <- Event EvFf c v _
-
-pattern PowerEvent :: EventCode -> EventValue -> Event
-pattern PowerEvent c v <- Event EvPwr c v _
-
-pattern ForceFeedbackStatusEvent :: EventCode -> EventValue -> Event
-pattern ForceFeedbackStatusEvent c v <- Event EvFfStatus c v _
-
-newtype EventCode = EventCode Word16 deriving (Enum, Eq, Ord, Read, Show)
-newtype EventValue = EventValue Int32 deriving (Enum, Eq, Ord, Read, Show)
+newtype EventCode = EventCode Word16
+    deriving stock (Eq, Ord, Read, Show)
+    deriving newtype (Enum, Integral, Real, Num) --TODO all this baggage to make 'toEnum'' slightly easier?
+newtype EventValue = EventValue Int32
+    deriving stock (Eq, Ord, Read, Show)
+    deriving newtype (Enum, Integral, Real, Num)
 
 data KeyEventType
     = Released
     | Pressed
     | Repeated
-    deriving (Enum, Eq, Ord, Read, Show)
+    deriving (Bounded, Enum, Eq, Ord, Read, Show)
 
-convertFlags :: Set ReadFlag -> CUInt
+convertFlags :: Set LL.ReadFlag -> CUInt
 convertFlags = fromIntegral . foldr ((.|.) . fromEnum) 0
 
-defaultReadFlags :: Set ReadFlag
-defaultReadFlags = [Normal,Blocking]
+defaultReadFlags :: Set LL.ReadFlag
+defaultReadFlags = [LL.Normal, LL.Blocking]
 
 grabDevice :: Device -> IO ()
 grabDevice = grabDevice' LL.LibevdevGrab
 ungrabDevice :: Device -> IO ()
 ungrabDevice = grabDevice' LL.LibevdevUngrab
 
-nextEvent :: Device -> Set ReadFlag -> IO Event
-nextEvent dev flags = do
-    (CUShort t, CUShort c, CInt v, s, us) <-
-        throwCErrors "nextEvent" (Right dev) $ LL.nextEvent (cDevice dev) (convertFlags flags)
-    return $ Event (convertEnum t) (EventCode c) (EventValue v) $
-        picosecondsToDiffTime $ 1_000_000_000_000 * fromIntegral s + 1_000_000 * fromIntegral us
+nextEvent :: Device -> Set LL.ReadFlag -> IO Event
+nextEvent dev flags =
+    fromCEvent <$> throwCErrors "nextEvent" (Right dev) (LL.nextEvent (cDevice dev) (convertFlags flags))
+
+fromCEvent :: LL.CEvent -> Event
+fromCEvent (LL.CEvent t (EventCode -> c) (EventValue -> v) time) = Event event $ fromCTimeVal time
+  where
+    event = fromMaybe unknown $ toEnum' t >>= \case
+        EvSyn -> SyncEvent     <$> toEnum' c
+        EvKey -> KeyEvent      <$> toEnum' c <*> toEnum' v
+        EvRel -> RelativeEvent <$> toEnum' c <*> pure v
+        EvAbs -> AbsoluteEvent <$> toEnum' c <*> pure v
+        EvMsc -> MiscEvent     <$> toEnum' c <*> pure v
+        EvSw  -> SwitchEvent   <$> toEnum' c <*> pure v
+        EvLed -> LEDEvent      <$> toEnum' c <*> pure v
+        EvSnd -> SoundEvent    <$> toEnum' c <*> pure v
+        EvRep -> RepeatEvent   <$> toEnum' c <*> pure v
+        EvFf  -> Just $ ForceFeedbackEvent c v
+        EvPwr -> Just $ PowerEvent c v
+        EvFfStatus -> Just $ ForceFeedbackStatusEvent c v
+    unknown = UnknownEvent t c v
+
+toCEvent :: Event -> LL.CEvent
+toCEvent (Event e time) = case e of
+    SyncEvent                (fe -> c) -> LL.CEvent (fe EvSyn) c 0 cTime
+        --TODO should sync value actually always be 0? this is based on observation...
+    KeyEvent                 (fe -> c) (fe -> v) -> LL.CEvent (fe EvKey) c v cTime
+    RelativeEvent            (fe -> c) (fe -> v) -> LL.CEvent (fe EvRel) c v cTime
+    AbsoluteEvent            (fe -> c) (fe -> v) -> LL.CEvent (fe EvAbs) c v cTime
+    MiscEvent                (fe -> c) (fe -> v) -> LL.CEvent (fe EvMsc) c v cTime
+    SwitchEvent              (fe -> c) (fe -> v) -> LL.CEvent (fe EvSw)  c v cTime
+    LEDEvent                 (fe -> c) (fe -> v) -> LL.CEvent (fe EvLed) c v cTime
+    SoundEvent               (fe -> c) (fe -> v) -> LL.CEvent (fe EvSnd) c v cTime
+    RepeatEvent              (fe -> c) (fe -> v) -> LL.CEvent (fe EvRep) c v cTime
+    ForceFeedbackEvent       (fe -> c) (fe -> v) -> LL.CEvent (fe EvFf)  c v cTime
+    PowerEvent               (fe -> c) (fe -> v) -> LL.CEvent (fe EvPwr) c v cTime
+    ForceFeedbackStatusEvent (fe -> c) (fe -> v) -> LL.CEvent (fe EvFfStatus) c v cTime
+    UnknownEvent             (fe -> t) (fe -> c) (fe -> v) -> LL.CEvent t c v cTime
+  where
+    --TODO this isn't entirely safe in general, though it's really no worse than 'fromEnum'
+    -- if we could tell C2HS which int type each #defined enum corresponded to, we could check this statically
+    fe :: (Enum a, Integral b) => a -> b
+    fe = fromIntegral . fromEnum
+    cTime = toCTimeVal time
 
 newDevice :: RawFilePath -> IO Device
 newDevice path = do
@@ -187,15 +181,31 @@ throwCErrors func pathOrDev x = do
 grabDevice' :: LL.GrabMode -> Device -> IO ()
 grabDevice' mode dev = throwCErrors "grabDevice" (Right dev) $ LL.grabDevice (cDevice dev) mode
 
---TODO ensure all uses are safe
-    -- really, fromEnum should be :: e -> Integer
-    -- and toEnum :: Integral a => a -> Maybe e
-    -- the issues with Enum are great enough that it may be worth considering using something more bespoke than c2hs
-    -- or it could be worth a PR
-        -- auto-generate safe *toInt/*fromInt based on the current logic
-        -- then implement Enum instance in terms of those
-    -- note that we also use to/from-Enum in LowLevel
--- obviously this isn't safe in general
--- we use it only after matching on 'EventType', to get the corresponding 'EventCode' and 'EventValue'
-convertEnum :: (Enum a, Enum b) => a -> b
-convertEnum = toEnum . fromEnum
+--TODO QuickCheck inverse
+toCTimeVal :: DiffTime -> LL.CTimeVal
+toCTimeVal t = LL.CTimeVal n (round $ f * 1_000_000)
+    where (n,f) = properFraction t
+fromCTimeVal :: LL.CTimeVal -> DiffTime
+fromCTimeVal (LL.CTimeVal s us) =
+    fromRational $ fromIntegral s + (fromIntegral us % 1_000_000)
+
+{-
+TODO this is a workaround until c2hs has a better story for enum conversions
+
+based on profiling, and Debug.Trace, it seems that 'enumMap' is computed no more times than necessary
+    (6 - number of combinations of a and k that it is called with)
+    but based on https://www.reddit.com/r/haskell/comments/grskne/help_reasoning_about_performance_memoization/,
+        it's possible that behaviour is worse without profiling on (argh...)
+
+open c2hs issue
+    we perhaps essentially want the `CEnum` class proposed at: https://github.com/haskell/c2hs/issues/78
+        but perhaps belonging (at least initially) in c2hs rather than base, for expediency
+        this doesn't necessarily consider enum defines though - discussion is around capturing the semantics of actual C enums
+    alternatively, monomorphic functions for each type, as with c2hs's with* functions
+-}
+toEnum' :: forall k a. (Integral k, Bounded a, Enum a) => k -> Maybe a
+toEnum' = (enumMap !?)
+  where
+    --TODO HashMap, IntMap?
+    enumMap :: Map k a
+    enumMap = Map.fromList $ map (fromIntegral . fromEnum &&& id) enumerate
