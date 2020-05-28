@@ -53,9 +53,7 @@ library
         GeneralizedNewtypeDeriving
         LambdaCase
         NumericUnderscores
-        OverloadedLists
         OverloadedStrings
-        PatternSynonyms
         ScopedTypeVariables
         TupleSections
         ViewPatterns

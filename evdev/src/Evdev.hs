@@ -33,6 +33,7 @@ import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Ratio ((%))
 import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Time.Clock (DiffTime)
 import Data.Word (Word16)
 import Foreign ((.|.))
@@ -92,7 +93,7 @@ convertFlags :: Set LL.ReadFlag -> CUInt
 convertFlags = fromIntegral . foldr ((.|.) . fromEnum) 0
 
 defaultReadFlags :: Set LL.ReadFlag
-defaultReadFlags = [LL.Normal, LL.Blocking]
+defaultReadFlags = Set.fromList [LL.Normal, LL.Blocking]
 
 grabDevice :: Device -> IO ()
 grabDevice = grabDevice' LL.LibevdevGrab

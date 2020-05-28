@@ -93,7 +93,7 @@ newDevices =
         tryNewDevice = printIOError . newDevice
     in do
         (_,es) <- S.yieldM $ watchDirectory (BS.unpack evdevDir) N.everything
-        scanMaybe watch [] es
+        scanMaybe watch Set.empty es
 
 
 {- Util -}
