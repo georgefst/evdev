@@ -45,7 +45,6 @@ import System.Posix.IO.ByteString (fdToHandle)
 
 import qualified Evdev.LowLevel as LL
 import Evdev.Codes
-import qualified Debug.Trace as Debug
 
 -- stores path that was originally used, as it seems impossible to recover this later
 -- We don't allow the user to access the underlying low-level C device.
