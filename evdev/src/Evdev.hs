@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-state-hack #-}
 module Evdev (
     defaultReadFlags,
     grabDevice,
@@ -44,6 +45,7 @@ import System.Posix.IO.ByteString (fdToHandle)
 
 import qualified Evdev.LowLevel as LL
 import Evdev.Codes
+import qualified Debug.Trace as Debug
 
 -- stores path that was originally used, as it seems impossible to recover this later
 -- We don't allow the user to access the underlying low-level C device.
@@ -192,6 +194,7 @@ fromCTimeVal (LL.CTimeVal s us) =
 
 {-
 TODO this is a workaround until c2hs has a better story for enum conversions
+    when we remove it we can get rid of '-fno-state-hack'
 
 based on profiling, and Debug.Trace, it seems that 'enumMap' is computed no more times than necessary
     (6 - number of combinations of a and k that it is called with)
