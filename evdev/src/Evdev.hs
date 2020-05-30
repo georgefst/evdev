@@ -24,7 +24,7 @@ module Evdev (
     EventValue(..),
 
     -- * Lower-level types
-    -- | These correspond more directly C's `input_event` and `timeval`.
+    -- | These correspond more directly to C's /input_event/ and /timeval/.
     -- They are used internally, but may be useful for advanced users.
     LL.CEvent(..),
     toCEvent,
