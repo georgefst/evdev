@@ -125,8 +125,8 @@ fromCEvent (LL.CEvent t (EventCode -> c) (EventValue -> v) time) = Event event $
 
 toCEvent :: Event -> LL.CEvent
 toCEvent (Event e time) = case e of
+    -- from kernel docs, 'EV_SYN event values are undefined' - we always seem to see 0, so may as well use that
     SyncEvent                (fe -> c) -> LL.CEvent (fe EvSyn) c 0 cTime
-        --TODO should sync value actually always be 0? this is based on observation...
     KeyEvent                 (fe -> c) (fe -> v) -> LL.CEvent (fe EvKey) c v cTime
     RelativeEvent            (fe -> c) (fe -> v) -> LL.CEvent (fe EvRel) c v cTime
     AbsoluteEvent            (fe -> c) (fe -> v) -> LL.CEvent (fe EvAbs) c v cTime
