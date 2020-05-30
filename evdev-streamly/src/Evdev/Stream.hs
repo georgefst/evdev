@@ -112,6 +112,7 @@ scanMaybe f e  = S.mapMaybe fst . S.scanlM' (f . snd) (Nothing, e)
 unfoldM :: (IsStream t, MonadAsync m) => m (Maybe a) -> t m a
 unfoldM x = S.unfoldrM (const $ fmap (,undefined) <$> x) undefined
 
+--TODO get rid - this isn't a great approach for a library
 -- like tryIOError, but also prints the error to stderr
 printIOError :: IO a -> IO (Either IOError a)
 printIOError f = (Right <$> f) `catchIOError` \err -> do
