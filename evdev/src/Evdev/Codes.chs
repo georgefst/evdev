@@ -1,18 +1,19 @@
--- | Datatypes corresponding to the constants in `input-event-codes.h`.
+{-
+TODO haddock doesn't quite work correctly with LINE pragmas
+    https://github.com/haskell/haddock/issues/441
+    for now we can work around this by deleting the pragmas before upload to hackage
+
+seems to be on its way to being fixed with `.hie` files (enable `-fwrite-ide-info`)
+    https://github.com/haskell/haddock/commit/8bc3c2990475a254e168fbdb005af93f9397b19c
+-}
+
+-- | Datatypes corresponding to the constants in [input-event-codes.h](https://github.com/torvalds/linux/blob/master/include/uapi/linux/input-event-codes.h).
+-- See [the Linux Kernel documentation](https://www.kernel.org/doc/html/latest/input/event-codes.html) for full details, noting that all names have been mechanically transformed into CamelCase.
 module Evdev.Codes where
 
 #include <linux/input-event-codes.h>
 
-{#enum define DeviceProperty {
-    INPUT_PROP_POINTER as InputPropPointer,
-    INPUT_PROP_DIRECT as InputPropDirect,
-    INPUT_PROP_BUTTONPAD as InputPropButtonpad,
-    INPUT_PROP_SEMI_MT as InputPropSemiMt,
-    INPUT_PROP_TOPBUTTONPAD as InputPropTopbuttonpad,
-    INPUT_PROP_POINTING_STICK as InputPropPointingStick,
-    INPUT_PROP_ACCELEROMETER as InputPropAccelerometer}
-    deriving (Bounded, Eq, Ord, Read, Show) #}
-
+-- | Each of these corresponds to one of the contructors of 'Evdev.EventData'. So you're unlikely to need to use these directly (C doesn't have ADTs - we do).
 {#enum define EventType {
     EV_SYN as EvSyn,
     EV_KEY as EvKey,
@@ -28,13 +29,15 @@ module Evdev.Codes where
     EV_FF_STATUS as EvFfStatus}
     deriving (Bounded, Eq, Ord, Read, Show) #}
 
-{#enum define SyncEventType {
-    SYN_REPORT as SynReport,
+-- | Synchronization events
+{#enum define SyncEvent {
+    SYN_REPORT as SynReport, -- | Used to separate packets of simultaneous events
     SYN_CONFIG as SynConfig,
     SYN_MT_REPORT as SynMtReport,
-    SYN_DROPPED as SynDropped}
+    SYN_DROPPED as SynDropped} --TODO handle SYN_DROPPED automatically for streams
     deriving (Bounded, Eq, Ord, Read, Show) #}
 
+-- | Keys and buttons
 {#enum define Key {
     KEY_RESERVED as KeyReserved,
     KEY_ESC as KeyEsc,
@@ -578,6 +581,7 @@ module Evdev.Codes where
     BTN_TRIGGER_HAPPY40 as BtnTriggerHappy40}
     deriving (Bounded, Eq, Ord, Read, Show) #}
 
+-- | Relative changes
 {#enum define RelativeAxis {
     REL_X as RelX,
     REL_Y as RelY,
@@ -591,6 +595,7 @@ module Evdev.Codes where
     REL_MISC as RelMisc}
     deriving (Bounded, Eq, Ord, Read, Show) #}
 
+-- | Absolute changes
 {#enum define AbsoluteAxis {
     ABS_X as AbsX,
     ABS_Y as AbsY,
@@ -636,7 +641,8 @@ module Evdev.Codes where
     ABS_MT_TOOL_Y as AbsMtToolY}
     deriving (Bounded, Eq, Ord, Read, Show) #}
 
-{#enum define SwitchEventType {
+-- | Stateful binary switches
+{#enum define SwitchEvent {
     SW_LID as SwLid,
     SW_TABLET_MODE as SwTabletMode,
     SW_HEADPHONE_INSERT as SwHeadphoneInsert,
@@ -655,7 +661,8 @@ module Evdev.Codes where
     SW_MUTE_DEVICE as SwMuteDevice}
     deriving (Bounded, Eq, Ord, Read, Show) #}
 
-{#enum define MiscEventType {
+-- | Miscellaneous
+{#enum define MiscEvent {
     MSC_SERIAL as MscSerial,
     MSC_PULSELED as MscPulseled,
     MSC_GESTURE as MscGesture,
@@ -664,7 +671,8 @@ module Evdev.Codes where
     MSC_TIMESTAMP as MscTimestamp}
     deriving (Bounded, Eq, Ord, Read, Show) #}
 
-{#enum define LEDEventType {
+-- | LEDs
+{#enum define LEDEvent {
     LED_NUML as LedNuml,
     LED_CAPSL as LedCapsl,
     LED_SCROLLL as LedScrolll,
@@ -678,13 +686,26 @@ module Evdev.Codes where
     LED_CHARGING as LedCharging}
     deriving (Bounded, Eq, Ord, Read, Show) #}
 
-{#enum define RepeatEventType {
+-- | Specifying autorepeating events
+{#enum define RepeatEvent {
     REP_DELAY as RepDelay,
     REP_PERIOD as RepPeriod}
     deriving (Bounded, Eq, Ord, Read, Show) #}
 
-{#enum define SoundEventType {
+-- | For simple sound output devices
+{#enum define SoundEvent {
     SND_CLICK as SndClick,
     SND_BELL as SndBell,
     SND_TONE as SndTone}
+    deriving (Bounded, Eq, Ord, Read, Show) #}
+
+-- | Device properties
+{#enum define DeviceProperty {
+    INPUT_PROP_POINTER as InputPropPointer,
+    INPUT_PROP_DIRECT as InputPropDirect,
+    INPUT_PROP_BUTTONPAD as InputPropButtonpad,
+    INPUT_PROP_SEMI_MT as InputPropSemiMt,
+    INPUT_PROP_TOPBUTTONPAD as InputPropTopbuttonpad,
+    INPUT_PROP_POINTING_STICK as InputPropPointingStick,
+    INPUT_PROP_ACCELEROMETER as InputPropAccelerometer}
     deriving (Bounded, Eq, Ord, Read, Show) #}

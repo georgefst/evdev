@@ -28,10 +28,11 @@ import qualified Streamly.Prelude as S
 
 import Evdev
 
+--TODO provide a 'group' operation on streams, representing packets as sets
 
 -- | Read all events from a device.
 readEvents :: Device -> SerialT IO Event
-readEvents dev = S.repeatM $ nextEvent dev defaultReadFlags
+readEvents = S.repeatM . nextEvent
 
 -- | Concurrently read events from multiple devices.
 -- If a read fails on one, the exception is printed to stderr and the stream continues to read from the others.
@@ -41,8 +42,8 @@ readEventsMany ds = asyncly $ do
     S.map (d,) $ serially $ readEvents' d
     where
         -- catch all IO errors
+        readEvents' = unfoldM . printIOError' . nextEvent
         readEvents' :: Device -> SerialT IO Event
-        readEvents' dev = unfoldM $ printIOError' $ nextEvent dev defaultReadFlags
 
 -- | Create devices for all paths in the stream.
 makeDevices :: IsStream t => t IO RawFilePath -> t IO Device
