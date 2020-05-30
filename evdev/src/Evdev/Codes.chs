@@ -1,3 +1,4 @@
+-- | Datatypes corresponding to the constants in `input-event-codes.h`.
 module Evdev.Codes where
 
 #include <linux/input-event-codes.h>

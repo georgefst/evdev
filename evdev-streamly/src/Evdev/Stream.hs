@@ -1,4 +1,4 @@
--- | The high-level, stream-based API.
+-- | Functions for working with streams of input events.
 -- Unless stated otherwise, these functions will throw exceptions if the underlying C calls fail.
 module Evdev.Stream (
     allDevices,

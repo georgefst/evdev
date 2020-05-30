@@ -2,6 +2,8 @@ cradle:
   multi:
     - path: "./evdev/src"
       config: {cradle: {cabal: {component: "lib:evdev"}}}
+    - path: "./evdev-streamly/src"
+      config: {cradle: {cabal: {component: "lib:evdev-streamly"}}}
     - path: "./evdev-examples/src"
       config: {cradle: {cabal: {component: "exe:evtest"}}}
     - path: "."
