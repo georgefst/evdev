@@ -44,10 +44,12 @@ library
     default-extensions:
         DerivingStrategies
         FlexibleContexts
+        FlexibleInstances
         GeneralizedNewtypeDeriving
         LambdaCase
         NumericUnderscores
         OverloadedStrings
         ScopedTypeVariables
         TupleSections
+        TypeFamilies
         ViewPatterns

@@ -130,7 +130,7 @@ ungrabDevice = grabDevice' LL.LibevdevUngrab
 -- | Get the next event from the device.
 nextEvent :: Device -> IO Event
 nextEvent dev =
-    fromCEvent <$> throwCErrors "nextEvent" (return $ Just $ devicePath dev) (LL.nextEvent (cDevice dev) (convertFlags defaultReadFlags))
+    fromCEvent <$> cErrCall "nextEvent" dev (LL.nextEvent (cDevice dev) (convertFlags defaultReadFlags))
 
 fromCEvent :: LL.CEvent -> Event
 fromCEvent (LL.CEvent t (EventCode -> c) (EventValue -> v) time) = Event event $ fromCTimeVal time
@@ -182,7 +182,7 @@ toCTimeVal t = LL.CTimeVal n (round $ f * 1_000_000)
 -- | Create a device from a valid path - usually /\/dev\/input\/eventX/ for some /X/.
 newDevice :: RawFilePath -> IO Device
 newDevice path = do
-    dev <- throwCErrors "newDevice" (return $ Just path) $ LL.newDevice path
+    dev <- cErrCall "newDevice" path $ LL.newDevice path
     return $ Device dev path
 
 -- | The usual directory containing devices (/"\/dev\/input"/).
@@ -207,17 +207,18 @@ newUDevice :: ByteString -> IO LL.UDevice
 newUDevice name = do
     dev <- LL.libevdev_new
     LL.setDeviceName dev name
-    f $ noReturn $ LL.enableType dev $ fromEnum' EvKey
+    f $ LL.enableType dev $ fromEnum' EvKey
     forM_ enumerate $ \(k :: Key) ->
-        f $ noReturn $ LL.enableCode dev (fromEnum' EvKey) (fromEnum' k) nullPtr
+        f $ LL.enableCode dev (fromEnum' EvKey) (fromEnum' k) nullPtr
     f $ LL.createFromDevice dev $ fromEnum' LL.UOMManaged
   where
-    f = throwCErrors "newUDevice" $ return Nothing
+    f :: CErrCall a => IO a -> IO (CErrCallRes a)
+    f = cErrCall "newUDevice" ()
 
 -- | Write a single event. Doesn't issue a sync event, so `writeEvent dev e /= writeBatch dev [e]`.
 writeEvent :: LL.UDevice -> EventData -> IO ()
 writeEvent dev e = do
-    throwCErrors "writeEvent" (LL.getSyspath dev) $ noReturn $ uncurry3 (LL.writeEvent dev) $ toCEvent' e
+    cErrCall "writeEvent" dev $ uncurry3 (LL.writeEvent dev) $ toCEvent' e
 
 -- | Write several events followed by a 'SynReport'.
 writeBatch :: Foldable t => LL.UDevice -> t EventData -> IO ()
@@ -230,22 +231,37 @@ writeBatch dev es = do
 
 --TODO careful - for some C calls (eg. libevdev_enable_event_code),
     -- int returned doesn't necessarily correspond to a particular error number
--- run the action, throwing a relevant exception if the C errno is not 0
-throwCErrors :: String -> IO (Maybe RawFilePath) -> IO (Errno, a) -> IO a
-throwCErrors func path x = do
-    (errno, res) <- x
-    case errno of
-        Errno 0 -> return res
-        Errno n -> do
-            path' <- path
-            ioError $ errnoToIOError func (Errno $ abs n) Nothing $ BS.unpack <$> path'
---TODO use a type class (/family) instead?
--- | Adapter for using 'throwCErrors' with functions that just return 'Errno'
-noReturn :: IO a -> IO (a, ())
-noReturn x = (,()) <$> x
+--TODO this kinda seems like overkill, but things were getting ugly without it...
+class CErrInfo a where
+    cErrInfo :: a -> IO (Maybe RawFilePath)
+instance CErrInfo () where
+    cErrInfo () = return Nothing
+instance CErrInfo RawFilePath where
+    cErrInfo = pure . pure
+instance CErrInfo Device where
+    cErrInfo = return . Just . devicePath
+instance CErrInfo LL.UDevice where
+    cErrInfo = LL.getSyspath
+-- for c actions which return an error value (0 for success)
+class CErrCall a where
+    type CErrCallRes a
+    -- run the action, throwing a relevant exception if the C errno is not 0
+    cErrCall :: CErrInfo info => String -> info -> IO a -> IO (CErrCallRes a)
+instance CErrCall Errno where
+    type CErrCallRes Errno = ()
+    cErrCall func path x = cErrCall func path $ (,()) <$> x
+instance CErrCall (Errno, a) where
+    type CErrCallRes (Errno, a) = a
+    cErrCall func info x = do
+        (errno, res) <- x
+        case errno of
+            Errno 0 -> return res
+            Errno n -> do
+                path' <- cErrInfo info
+                ioError $ errnoToIOError func (Errno $ abs n) Nothing $ BS.unpack <$> path'
 
 grabDevice' :: LL.GrabMode -> Device -> IO ()
-grabDevice' mode dev = throwCErrors "grabDevice" (return $ Just $ devicePath dev) $ noReturn $
+grabDevice' mode dev = cErrCall "grabDevice" dev $
     LL.grabDevice (cDevice dev) mode
 
 --TODO this isn't entirely safe in general, though it's really no worse than 'fromEnum'
