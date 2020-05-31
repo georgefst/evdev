@@ -32,10 +32,16 @@ module Evdev (
     LL.CTimeVal(..),
     toCTimeVal,
     fromCTimeVal,
+
+    -- * User input
+    LL.UDevice,
+    newUDevice,
+    writeEvent,
+    writeBatch,
 ) where
 
 import Control.Arrow ((&&&))
-import Control.Monad (filterM,join)
+import Control.Monad (forM_, filterM, join)
 import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as BS
 import Data.Int (Int32)
@@ -47,12 +53,12 @@ import Data.Ratio ((%))
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Time.Clock (DiffTime)
+import Data.Tuple.Extra (uncurry3)
 import Data.Word (Word16)
-import Foreign ((.|.))
+import Foreign (nullPtr, (.|.))
 import Foreign.C (CUInt)
-import Foreign.C.Error (Errno(Errno),errnoToIOError)
-import System.Posix.ByteString (Fd,RawFilePath)
-import System.Posix.IO.ByteString (fdToHandle)
+import Foreign.C.Error (Errno(Errno), errnoToIOError)
+import System.Posix.ByteString (Fd, RawFilePath)
 
 import qualified Evdev.LowLevel as LL
 import Evdev.Codes
@@ -124,7 +130,7 @@ ungrabDevice = grabDevice' LL.LibevdevUngrab
 -- | Get the next event from the device.
 nextEvent :: Device -> IO Event
 nextEvent dev =
-    fromCEvent <$> throwCErrors "nextEvent" (Right dev) (LL.nextEvent (cDevice dev) (convertFlags defaultReadFlags))
+    fromCEvent <$> throwCErrors "nextEvent" (return $ Just $ devicePath dev) (LL.nextEvent (cDevice dev) (convertFlags defaultReadFlags))
 
 fromCEvent :: LL.CEvent -> Event
 fromCEvent (LL.CEvent t (EventCode -> c) (EventValue -> v) time) = Event event $ fromCTimeVal time
@@ -145,27 +151,24 @@ fromCEvent (LL.CEvent t (EventCode -> c) (EventValue -> v) time) = Event event $
     unknown = UnknownEvent t c v
 
 toCEvent :: Event -> LL.CEvent
-toCEvent (Event e time) = case e of
+toCEvent (Event e time) = uncurry3 LL.CEvent (toCEvent' e) $ toCTimeVal time
+
+toCEvent' :: EventData -> (Word16, Word16, Int32)
+toCEvent' = \case
     -- from kernel docs, 'EV_SYN event values are undefined' - we always seem to see 0, so may as well use that
-    SyncEvent                (fe -> c) -> LL.CEvent (fe EvSyn) c 0 cTime
-    KeyEvent                 (fe -> c) (fe -> v) -> LL.CEvent (fe EvKey) c v cTime
-    RelativeEvent            (fe -> c) (fe -> v) -> LL.CEvent (fe EvRel) c v cTime
-    AbsoluteEvent            (fe -> c) (fe -> v) -> LL.CEvent (fe EvAbs) c v cTime
-    MiscEvent                (fe -> c) (fe -> v) -> LL.CEvent (fe EvMsc) c v cTime
-    SwitchEvent              (fe -> c) (fe -> v) -> LL.CEvent (fe EvSw)  c v cTime
-    LEDEvent                 (fe -> c) (fe -> v) -> LL.CEvent (fe EvLed) c v cTime
-    SoundEvent               (fe -> c) (fe -> v) -> LL.CEvent (fe EvSnd) c v cTime
-    RepeatEvent              (fe -> c) (fe -> v) -> LL.CEvent (fe EvRep) c v cTime
-    ForceFeedbackEvent       (fe -> c) (fe -> v) -> LL.CEvent (fe EvFf)  c v cTime
-    PowerEvent               (fe -> c) (fe -> v) -> LL.CEvent (fe EvPwr) c v cTime
-    ForceFeedbackStatusEvent (fe -> c) (fe -> v) -> LL.CEvent (fe EvFfStatus) c v cTime
-    UnknownEvent             (fe -> t) (fe -> c) (fe -> v) -> LL.CEvent t c v cTime
-  where
-    --TODO this isn't entirely safe in general, though it's really no worse than 'fromEnum'
-    -- if we could tell C2HS which int type each #defined enum corresponded to, we could check this statically
-    fe :: (Enum a, Integral b) => a -> b
-    fe = fromIntegral . fromEnum
-    cTime = toCTimeVal time
+    SyncEvent                (fromEnum' -> c) -> (fromEnum' EvSyn, c, 0)
+    KeyEvent                 (fromEnum' -> c) (fromEnum' -> v) -> (fromEnum' EvKey, c, v)
+    RelativeEvent            (fromEnum' -> c) (fromEnum' -> v) -> (fromEnum' EvRel, c, v)
+    AbsoluteEvent            (fromEnum' -> c) (fromEnum' -> v) -> (fromEnum' EvAbs, c, v)
+    MiscEvent                (fromEnum' -> c) (fromEnum' -> v) -> (fromEnum' EvMsc, c, v)
+    SwitchEvent              (fromEnum' -> c) (fromEnum' -> v) -> (fromEnum' EvSw,  c, v)
+    LEDEvent                 (fromEnum' -> c) (fromEnum' -> v) -> (fromEnum' EvLed, c, v)
+    SoundEvent               (fromEnum' -> c) (fromEnum' -> v) -> (fromEnum' EvSnd, c, v)
+    RepeatEvent              (fromEnum' -> c) (fromEnum' -> v) -> (fromEnum' EvRep, c, v)
+    ForceFeedbackEvent       (fromEnum' -> c) (fromEnum' -> v) -> (fromEnum' EvFf,  c, v)
+    PowerEvent               (fromEnum' -> c) (fromEnum' -> v) -> (fromEnum' EvPwr, c, v)
+    ForceFeedbackStatusEvent (fromEnum' -> c) (fromEnum' -> v) -> (fromEnum' EvFfStatus, c, v)
+    UnknownEvent             (fromEnum' -> t) (fromEnum' -> c) (fromEnum' -> v) -> (t, c, v)
 
 fromCTimeVal :: LL.CTimeVal -> DiffTime
 fromCTimeVal (LL.CTimeVal s us) =
@@ -179,7 +182,7 @@ toCTimeVal t = LL.CTimeVal n (round $ f * 1_000_000)
 -- | Create a device from a valid path - usually /\/dev\/input\/eventX/ for some /X/.
 newDevice :: RawFilePath -> IO Device
 newDevice path = do
-    dev <- throwCErrors "newDevice" (Left path) $ LL.newDevice path
+    dev <- throwCErrors "newDevice" (return $ Just path) $ LL.newDevice path
     return $ Device dev path
 
 -- | The usual directory containing devices (/"\/dev\/input"/).
@@ -196,25 +199,59 @@ deviceProperties :: Device -> IO [DeviceProperty]
 deviceProperties dev = filterM (LL.hasProperty $ cDevice dev) enumerate
 
 
+--TODO separate module?
+{- uinput -}
+
+--TODO only enables keys and buttons
+newUDevice :: ByteString -> IO LL.UDevice
+newUDevice name = do
+    dev <- LL.libevdev_new
+    LL.setDeviceName dev name
+    f $ noReturn $ LL.enableType dev $ fromEnum' EvKey
+    forM_ enumerate $ \(k :: Key) ->
+        f $ noReturn $ LL.enableCode dev (fromEnum' EvKey) (fromEnum' k) nullPtr
+    f $ LL.createFromDevice dev $ fromEnum' LL.UOMManaged
+  where
+    f = throwCErrors "newUDevice" $ return Nothing
+
+-- | Write a single event. Doesn't issue a sync event, so `writeEvent dev e /= writeBatch dev [e]`.
+writeEvent :: LL.UDevice -> EventData -> IO ()
+writeEvent dev e = do
+    throwCErrors "writeEvent" (LL.getSyspath dev) $ noReturn $ uncurry3 (LL.writeEvent dev) $ toCEvent' e
+
+-- | Write several events followed by a 'SynReport'.
+writeBatch :: Foldable t => LL.UDevice -> t EventData -> IO ()
+writeBatch dev es = do
+    forM_ es $ writeEvent dev
+    writeEvent dev $ SyncEvent SynReport
+
+
 {- Util -}
 
+--TODO careful - for some C calls (eg. libevdev_enable_event_code),
+    -- int returned doesn't necessarily correspond to a particular error number
 -- run the action, throwing a relevant exception if the C errno is not 0
-throwCErrors :: String -> Either ByteString Device -> IO (Errno, a) -> IO a
-throwCErrors func pathOrDev x = do
+throwCErrors :: String -> IO (Maybe RawFilePath) -> IO (Errno, a) -> IO a
+throwCErrors func path x = do
     (errno, res) <- x
     case errno of
         Errno 0 -> return res
         Errno n -> do
-            (handle,path) <- case pathOrDev of
-                Left path -> return (Nothing,path)
-                Right dev -> do
-                    h <- fdToHandle =<< deviceFd dev
-                    return (Just h, devicePath dev)
-            ioError $ errnoToIOError func (Errno $ abs n) handle (Just $ BS.unpack path)
+            path' <- path
+            ioError $ errnoToIOError func (Errno $ abs n) Nothing $ BS.unpack <$> path'
+--TODO use a type class (/family) instead?
+-- | Adapter for using 'throwCErrors' with functions that just return 'Errno'
+noReturn :: IO a -> IO (a, ())
+noReturn x = (,()) <$> x
 
 grabDevice' :: LL.GrabMode -> Device -> IO ()
-grabDevice' mode dev = throwCErrors "grabDevice" (Right dev) $ LL.grabDevice (cDevice dev) mode
+grabDevice' mode dev = throwCErrors "grabDevice" (return $ Just $ devicePath dev) $ noReturn $
+    LL.grabDevice (cDevice dev) mode
 
+--TODO this isn't entirely safe in general, though it's really no worse than 'fromEnum'
+-- if we could tell C2HS which int type each #defined enum corresponded to, we could check this statically
+fromEnum' :: (Num c, Enum a) => a -> c
+fromEnum' = fromIntegral . fromEnum
 
 {-
 TODO this is a workaround until c2hs has a better story for enum conversions
