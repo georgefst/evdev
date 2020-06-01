@@ -55,7 +55,7 @@ import qualified Data.Set as Set
 import Data.Time.Clock (DiffTime)
 import Data.Tuple.Extra (uncurry3)
 import Data.Word (Word16)
-import Foreign (nullPtr, (.|.))
+import Foreign (Ptr, nullPtr, (.|.))
 import Foreign.C (CUInt)
 import Foreign.C.Error (Errno(Errno), errnoToIOError)
 import System.Posix.ByteString (Fd, RawFilePath)
@@ -202,24 +202,48 @@ deviceProperties dev = filterM (LL.hasProperty $ cDevice dev) enumerate
 --TODO separate module?
 {- uinput -}
 
---TODO only enables keys and buttons
+--TODO let enabled codes be configurable rather than just enabling everything?
+    -- can't really think of a good API without going very low-level
+--TODO doesn't enable those types that don't have a dedicated sum type for codes
+    -- i.e. ForceFeedbackEvent, PowerEvent, ForceFeedbackStatusEvent, UnknownEvent
+--TODO doesn't enable 'RepeatEvent's, which require a 'Ptr Int'
 newUDevice :: ByteString -> IO LL.UDevice
 newUDevice name = do
     dev <- LL.libevdev_new
     LL.setDeviceName dev name
-    f $ LL.enableType dev $ fromEnum' EvKey
-    forM_ enumerate $ \(k :: Key) ->
-        f $ LL.enableCode dev (fromEnum' EvKey) (fromEnum' k) nullPtr
-    f $ LL.createFromDevice dev $ fromEnum' LL.UOMManaged
+
+    let enable :: Ptr () -> EventType -> [Word16] -> IO ()
+        enable ptr t cs = do
+            cec $ LL.enableType dev t'
+            forM_ cs $ \c -> cec $ LL.enableCode dev t' c ptr
+          where
+            t' = fromEnum' t
+
+    --TODO simplify when impredicative types land (any day now...)
+    mapM_ (uncurry $ enable nullPtr)
+        [ (EvKey, map fromEnum' (enumerate :: [Key]))
+        , (EvRel, map fromEnum' (enumerate :: [RelativeAxis]))
+        , (EvMsc, map fromEnum' (enumerate :: [MiscEvent]))
+        , (EvSw , map fromEnum' (enumerate :: [SwitchEvent]))
+        , (EvLed, map fromEnum' (enumerate :: [LEDEvent]))
+        , (EvSnd, map fromEnum' (enumerate :: [SoundEvent]))
+        ]
+
+    --TODO these numbers really need to be configurable
+    LL.withAbsInfo 127 0 255 $ \absInfo ->
+        enable absInfo EvAbs $ map fromEnum' (enumerate :: [AbsoluteAxis])
+
+    cec $ LL.createFromDevice dev $ fromEnum' LL.UOMManaged
   where
-    f :: CErrCall a => IO a -> IO (CErrCallRes a)
-    f = cErrCall "newUDevice" ()
+    cec :: CErrCall a => IO a -> IO (CErrCallRes a)
+    cec = cErrCall "newUDevice" ()
 
 -- | Write a single event. Doesn't issue a sync event, so `writeEvent dev e /= writeBatch dev [e]`.
 writeEvent :: LL.UDevice -> EventData -> IO ()
 writeEvent dev e = do
     cErrCall "writeEvent" dev $ uncurry3 (LL.writeEvent dev) $ toCEvent' e
 
+--TODO name - 'writeEvents' ?
 -- | Write several events followed by a 'SynReport'.
 writeBatch :: Foldable t => LL.UDevice -> t EventData -> IO ()
 writeBatch dev es = do
