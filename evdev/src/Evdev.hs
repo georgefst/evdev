@@ -38,6 +38,9 @@ module Evdev (
     newUDevice,
     writeEvent,
     writeBatch,
+    -- ** Properties
+    LL.getSyspath,
+    LL.getDevnode,
 ) where
 
 import Control.Arrow ((&&&))
