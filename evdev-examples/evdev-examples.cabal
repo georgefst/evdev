@@ -7,8 +7,8 @@ author:              George Thomas
 maintainer:          George Thomas
 
 executable evtest
-    main-is: Evtest.hs
-    hs-source-dirs: src
+    main-is: Main.hs
+    hs-source-dirs: evtest
     build-depends:
         base,
         bytestring,
@@ -16,6 +16,20 @@ executable evtest
         evdev-streamly,
         pretty-simple,
         streamly,
+    ghc-options:
+        -threaded
+        -Wall
+    default-language: Haskell2010
+    default-extensions:
+        OverloadedStrings
+
+executable uinput
+    main-is: Main.hs
+    hs-source-dirs: uinput
+    build-depends:
+        base,
+        bytestring,
+        evdev,
     ghc-options:
         -threaded
         -Wall

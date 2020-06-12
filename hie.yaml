@@ -1,10 +1,13 @@
 cradle:
-  multi:
-    - path: "./evdev/src"
-      config: {cradle: {cabal: {component: "lib:evdev"}}}
-    - path: "./evdev-streamly/src"
-      config: {cradle: {cabal: {component: "lib:evdev-streamly"}}}
-    - path: "./evdev-examples/src"
-      config: {cradle: {cabal: {component: "exe:evtest"}}}
-    - path: "."
-      config: {cradle: {none: }}
+  cabal:
+    - path: "evdev/src"
+      component: "lib:evdev"
+
+    - path: "evdev-examples/evtest"
+      component: "evdev-examples:exe:evtest"
+
+    - path: "evdev-examples/uinput"
+      component: "evdev-examples:exe:uinput"
+
+    - path: "evdev-streamly/src"
+      component: "lib:evdev-streamly"
