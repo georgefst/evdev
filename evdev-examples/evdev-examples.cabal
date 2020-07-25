@@ -2,7 +2,6 @@ cabal-version:       2.4
 name:                evdev-examples
 version:             0.1.0.0
 license:             BSD-3-Clause
-license-file:        LICENSE
 author:              George Thomas
 maintainer:          George Thomas
 
