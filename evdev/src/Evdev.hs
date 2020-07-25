@@ -205,11 +205,15 @@ deviceProperties dev = filterM (LL.hasProperty $ cDevice dev) enumerate
 --TODO separate module?
 {- uinput -}
 
---TODO let enabled codes be configurable rather than just enabling everything?
+--TODO let enabled codes be configurable rather than just enabling (almost) everything?
     -- can't really think of a good API without going very low-level
+    -- not enabling keys beyond 'BtnDigi' is particularly bad, but some of them prevent e.g.
+        -- keyboard events being picked up by X
 --TODO doesn't enable those types that don't have a dedicated sum type for codes
     -- i.e. ForceFeedbackEvent, PowerEvent, ForceFeedbackStatusEvent, UnknownEvent
 --TODO doesn't enable 'RepeatEvent's, which require a 'Ptr Int'
+--TODO why does libevdev always create two devices (including a mouse we don't care about)
+    -- this seems to be true with even the simple Python examples as well
 newUDevice :: ByteString -> IO LL.UDevice
 newUDevice name = do
     dev <- LL.libevdev_new
@@ -224,7 +228,7 @@ newUDevice name = do
 
     --TODO simplify when impredicative types land (any day now...)
     mapM_ (uncurry $ enable nullPtr)
-        [ (EvKey, map fromEnum' (enumerate :: [Key]))
+        [ (EvKey, map fromEnum' $ enumFromTo KeyReserved (pred BtnDigi))
         , (EvRel, map fromEnum' (enumerate :: [RelativeAxis]))
         , (EvMsc, map fromEnum' (enumerate :: [MiscEvent]))
         , (EvSw , map fromEnum' (enumerate :: [SwitchEvent]))
