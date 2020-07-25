@@ -5,6 +5,7 @@ module Evdev.Stream (
     allEvents,
     makeDevices,
     newDevices,
+    newDevices',
     readEvents,
     readEventsMany,
 ) where
@@ -15,6 +16,7 @@ import Data.Functor
 import System.IO
 import System.IO.Error
 
+import Control.Concurrent (threadDelay)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.ByteString.Char8 as BS
@@ -66,6 +68,9 @@ allDevices =
     in  S.mapMaybeM (printIOError' . newDevice) paths
 
 --TODO perhaps streamly-fsnotify ought to use RawFilePath?
+--TODO fix this - we don't always seem to get notified of permission changes -
+    -- indeed when we don't, we actually find that 'stat' and 'ls -l' show different permissions to:
+    -- 'fmap (flip showOct "" . fileMode) . getFileStatus'
 -- | All new devices created (in /\/dev\/input/).
 -- Watches for new file paths (using \inotify\), and those corresponding to valid devices are added to the stream.
 newDevices :: (IsStream t, Monad (t IO)) => t IO Device
@@ -95,6 +100,21 @@ newDevices =
     in do
         (_,es) <- S.yieldM $ watchDirectory (BS.unpack evdevDir) N.everything
         scanMaybe watch Set.empty es
+
+--TODO just fix 'newDevices'
+-- | This is a workaround for bugginess in 'newDevices' when it comes to waiting for permissions on a new device
+-- - it just waits the number of microseconds given before trying to read from the device.
+newDevices' :: (IsStream t, Monad (t IO)) => Int -> t IO Device
+newDevices' delay =
+    let f = \case
+            N.Added (BS.pack -> p) _ NotDir -> do
+                threadDelay delay
+                eitherToMaybe <$> tryNewDevice p
+            _ -> return Nothing
+        tryNewDevice = printIOError . newDevice
+    in do
+        (_,es) <- S.yieldM $ watchDirectory (BS.unpack evdevDir) N.everything
+        S.mapMaybeM f es
 
 
 {- Util -}
