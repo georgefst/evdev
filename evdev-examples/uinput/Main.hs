@@ -7,7 +7,7 @@ import qualified Evdev.Codes as Codes
 
 main :: IO ()
 main = do
-    dev <- newUDevice "haskell-test"
+    dev <- newUDevice $ defaultNewUDevice "haskell-test"
     forever $ do
        _ <- getChar
        writeBatch dev events
