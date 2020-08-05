@@ -92,6 +92,12 @@ newDevice path = do
 {#fun libevdev_set_name { `Device', `CString' } -> `()' #}
 setDeviceName :: Device -> ByteString -> IO ()
 setDeviceName dev name = useAsCString name $ libevdev_set_name dev
+{#fun libevdev_set_phys { `Device', `CString' } -> `()' #}
+setDevicePhys :: Device -> ByteString -> IO ()
+setDevicePhys dev phys = useAsCString phys $ libevdev_set_phys dev
+{#fun libevdev_set_uniq { `Device', `CString' } -> `()' #}
+setDeviceUniq :: Device -> ByteString -> IO ()
+setDeviceUniq dev uniq = useAsCString uniq $ libevdev_set_uniq dev
 
 --TODO c2hs can't seem to help us here due to the nested pointer
 foreign import ccall safe "Evdev/LowLevel.chs.h libevdev_uinput_create_from_device"
@@ -129,6 +135,16 @@ withAbsInfo v l u f = do
 {#fun libevdev_has_property as hasProperty { `Device', devPropToInt `DeviceProperty' } -> `Bool' #}
 {#fun libevdev_get_fd as deviceFd { `Device' } -> `Fd' Fd #}
 {#fun libevdev_get_name as deviceName { `Device' } -> `IO ByteString' packCString #}
+{#fun libevdev_get_phys as devicePhys { `Device' } -> `IO ByteString' packCString #}
+{#fun libevdev_get_uniq as deviceUniq { `Device' } -> `IO ByteString' packCString #}
+{#fun libevdev_get_id_product as deviceProduct { `Device' } -> `Int' #}
+{#fun libevdev_get_id_vendor as deviceVendor { `Device' } -> `Int' #}
+{#fun libevdev_get_id_bustype as deviceBustype { `Device' } -> `Int' #}
+{#fun libevdev_get_id_version as deviceVersion { `Device' } -> `Int' #}
+{#fun libevdev_set_id_product { `Device', `Int' } -> `()' #}
+{#fun libevdev_set_id_vendor { `Device', `Int' } -> `()' #}
+{#fun libevdev_set_id_bustype { `Device', `Int' } -> `()' #}
+{#fun libevdev_set_id_version { `Device', `Int' } -> `()' #}
 {#fun libevdev_enable_event_type as enableType { `Device', `Word16' } -> `Errno' Errno #}
 {#fun libevdev_enable_event_code as enableCode { `Device', `Word16', `Word16', `Ptr ()' } -> `Errno' Errno #}
 {#fun libevdev_uinput_write_event as writeEvent { `UDevice', `Word16', `Word16', `Int32' } -> `Errno' Errno #}

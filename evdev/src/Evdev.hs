@@ -12,6 +12,12 @@ module Evdev (
     devicePath,
     deviceProperties,
     deviceFd,
+    devicePhys,
+    deviceUniq,
+    deviceProduct,
+    deviceVendor,
+    deviceBustype,
+    deviceVersion,
     -- ** Grabbing
     grabDevice,
     ungrabDevice,
@@ -197,6 +203,18 @@ deviceName = join . LL.deviceName . cDevice
 
 deviceFd :: Device -> IO Fd
 deviceFd = LL.deviceFd . cDevice
+devicePhys :: Device -> IO ByteString
+devicePhys = join . LL.devicePhys . cDevice
+deviceUniq :: Device -> IO ByteString
+deviceUniq = join . LL.deviceUniq . cDevice
+deviceProduct :: Device -> IO Int
+deviceProduct = LL.deviceProduct . cDevice
+deviceVendor :: Device -> IO Int
+deviceVendor = LL.deviceVendor . cDevice
+deviceBustype :: Device -> IO Int
+deviceBustype = LL.deviceBustype . cDevice
+deviceVersion :: Device -> IO Int
+deviceVersion = LL.deviceVersion . cDevice
 
 deviceProperties :: Device -> IO [DeviceProperty]
 deviceProperties dev = filterM (LL.hasProperty $ cDevice dev) enumerate
