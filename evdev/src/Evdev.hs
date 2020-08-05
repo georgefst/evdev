@@ -43,6 +43,7 @@ module Evdev (
     LL.UDevice,
     newUDevice,
     NewUDevice(..),
+    defaultNewUDevice,
     LL.AbsInfo(..),
     writeEvent,
     writeBatch,
@@ -230,6 +231,23 @@ deviceProperties dev = filterM (LL.hasProperty $ cDevice dev) enumerate
 --TODO doesn't enable 'RepeatEvent's, which require a 'Ptr Int'
 --TODO why does libevdev always create two devices (including a mouse we don't care about)
     -- this seems to be true with even the simple Python examples as well
+defaultNewUDevice :: ByteString -> NewUDevice
+defaultNewUDevice name = NewUDevice
+    { name
+    , uniq = Nothing
+    , phys = Nothing
+    , idProduct = Nothing
+    , idVendor = Nothing
+    , idBustype = Nothing
+    , idVersion = Nothing
+    , keys = []
+    , absAxes = []
+    , relAxes = []
+    , miscs = []
+    , switchs = []
+    , leds = []
+    , sounds = []
+    }
 data NewUDevice = NewUDevice
     { name :: ByteString
     , phys :: Maybe ByteString
