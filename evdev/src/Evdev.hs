@@ -42,6 +42,8 @@ module Evdev (
     -- * User input
     LL.UDevice,
     newUDevice,
+    NewUDevice(..),
+    LL.AbsInfo(..),
     writeEvent,
     writeBatch,
     -- ** Properties
@@ -50,7 +52,7 @@ module Evdev (
 ) where
 
 import Control.Arrow ((&&&))
-import Control.Monad (forM_, filterM, join)
+import Control.Monad (filterM, forM_, join, unless)
 import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as BS
 import Data.Int (Int32)
@@ -223,40 +225,61 @@ deviceProperties dev = filterM (LL.hasProperty $ cDevice dev) enumerate
 --TODO separate module?
 {- uinput -}
 
---TODO let enabled codes be configurable rather than just enabling (almost) everything?
-    -- can't really think of a good API without going very low-level
-    -- not enabling keys beyond 'BtnDigi' is particularly bad, but some of them prevent e.g.
-        -- keyboard events being picked up by X
 --TODO doesn't enable those types that don't have a dedicated sum type for codes
     -- i.e. ForceFeedbackEvent, PowerEvent, ForceFeedbackStatusEvent, UnknownEvent
 --TODO doesn't enable 'RepeatEvent's, which require a 'Ptr Int'
 --TODO why does libevdev always create two devices (including a mouse we don't care about)
     -- this seems to be true with even the simple Python examples as well
-newUDevice :: ByteString -> IO LL.UDevice
-newUDevice name = do
+data NewUDevice = NewUDevice
+    { name :: ByteString
+    , phys :: Maybe ByteString
+    , uniq :: Maybe ByteString
+    , idProduct :: Maybe Int
+    , idVendor :: Maybe Int
+    , idBustype :: Maybe Int
+    , idVersion :: Maybe Int
+    , keys :: [Key]
+    , absAxes :: [(AbsoluteAxis,LL.AbsInfo)]
+    , relAxes :: [RelativeAxis]
+    , miscs :: [MiscEvent]
+    , switchs :: [SwitchEvent]
+    , leds :: [LEDEvent]
+    , sounds :: [SoundEvent]
+    }
+newUDevice :: NewUDevice -> IO LL.UDevice
+newUDevice NewUDevice{..} = do
     dev <- LL.libevdev_new
     LL.setDeviceName dev name
 
+    let maybeSet :: (LL.Device -> a -> IO ()) -> Maybe a -> IO ()
+        maybeSet setter x = maybe (pure ()) (setter dev) x
+    maybeSet LL.setDevicePhys phys
+    maybeSet LL.setDeviceUniq uniq
+    maybeSet LL.libevdev_set_id_product idProduct
+    maybeSet LL.libevdev_set_id_vendor idVendor
+    maybeSet LL.libevdev_set_id_bustype idBustype
+    maybeSet LL.libevdev_set_id_version idVersion
+
     let enable :: Ptr () -> EventType -> [Word16] -> IO ()
         enable ptr t cs = do
-            cec $ LL.enableType dev t'
+            unless (null cs) $ cec $ LL.enableType dev t'
             forM_ cs $ \c -> cec $ LL.enableCode dev t' c ptr
           where
             t' = fromEnum' t
 
     --TODO simplify when impredicative types land (any day now...)
     mapM_ (uncurry $ enable nullPtr)
-        [ (EvKey, map fromEnum' $ enumFromTo KeyReserved (pred BtnDigi))
-        , (EvRel, map fromEnum' (enumerate :: [RelativeAxis]))
-        , (EvMsc, map fromEnum' (enumerate :: [MiscEvent]))
-        , (EvSw , map fromEnum' (enumerate :: [SwitchEvent]))
-        , (EvLed, map fromEnum' (enumerate :: [LEDEvent]))
-        , (EvSnd, map fromEnum' (enumerate :: [SoundEvent]))
+        [ (EvKey, map fromEnum' keys)
+        , (EvRel, map fromEnum' relAxes)
+        , (EvMsc, map fromEnum' miscs)
+        , (EvSw , map fromEnum' switchs)
+        , (EvLed, map fromEnum' leds)
+        , (EvSnd, map fromEnum' sounds)
         ]
 
-    --TODO these numbers really need to be configurable
-    LL.withAbsInfo 127 0 255 $ \absInfo ->
-        enable absInfo EvAbs $ map fromEnum' (enumerate :: [AbsoluteAxis])
+    forM_ absAxes $ \(axis,absInfo) ->
+        LL.withAbsInfo absInfo $ \ptr ->
+            enable ptr EvAbs [fromEnum' axis]
 
     cec $ LL.createFromDevice dev $ fromEnum' LL.UOMManaged
   where

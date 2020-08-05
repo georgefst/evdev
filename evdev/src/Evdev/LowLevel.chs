@@ -118,14 +118,23 @@ getSyspath = join . libevdev_uinput_get_syspath
 getDevnode :: UDevice -> IO (Maybe ByteString)
 getDevnode = join . libevdev_uinput_get_devnode
 
--- val, min, max
---TODO what happens to the fields I haven't set?
-withAbsInfo :: Int32 -> Int32 -> Int32 -> (Ptr () -> IO a) -> IO a
-withAbsInfo v l u f = do
+data AbsInfo = AbsInfo
+    { absValue :: Int32
+    , absMinimum :: Int32
+    , absMaximum :: Int32
+    , absFuzz :: Int32
+    , absFlat :: Int32
+    , absResolution :: Int32
+    }
+withAbsInfo :: AbsInfo -> (Ptr () -> IO a) -> IO a
+withAbsInfo AbsInfo{..} f = do
     p <- mallocBytes {#sizeof input_absinfo#}
-    {#set input_absinfo.value#} p $ CInt v
-    {#set input_absinfo.minimum#} p $ CInt l
-    {#set input_absinfo.maximum#} p $ CInt u
+    {#set input_absinfo.value#} p $ CInt absValue
+    {#set input_absinfo.minimum#} p $ CInt absMinimum
+    {#set input_absinfo.maximum#} p $ CInt absMaximum
+    {#set input_absinfo.fuzz#} p $ CInt absFuzz
+    {#set input_absinfo.flat#} p $ CInt absFlat
+    {#set input_absinfo.resolution#} p $ CInt absResolution
     pf <- newForeignPtr_ p
     withForeignPtr pf f
 

@@ -47,8 +47,10 @@ library
         FlexibleInstances
         GeneralizedNewtypeDeriving
         LambdaCase
+        NamedFieldPuns
         NumericUnderscores
         OverloadedStrings
+        RecordWildCards
         ScopedTypeVariables
         TupleSections
         TypeFamilies
