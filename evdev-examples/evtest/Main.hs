@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module Main (main) where
 
 import qualified Data.ByteString.Char8 as BS
@@ -11,7 +12,7 @@ import Evdev.Stream
 
 main :: IO ()
 main = getArgs >>= \case
-    ["new"] -> do
+    ["new",t] -> do
         let printNewDevice d = do
                 BS.putStrLn ""
                 BS.putStrLn "New device:"
@@ -19,7 +20,7 @@ main = getArgs >>= \case
                 BS.putStrLn =<< deviceName d
                 BS.putStrLn ""
                 return d
-        S.mapM_ pPrint $ readEventsMany $ S.mapM printNewDevice newDevices
+        S.mapM_ pPrint $ readEventsMany $ S.mapM printNewDevice $ newDevices' $ read t
     _ -> do
         S.mapM_ printDevice allDevices
         BS.putStr "Choose device numbers (separated by whitespace): "
