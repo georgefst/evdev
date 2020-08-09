@@ -2,3 +2,9 @@ packages:
     evdev
     evdev-streamly
     evdev-examples
+
+--TODO remove when fixed: https://github.com/haskell/c2hs/pull/256
+-- https://github.com/haskell/c2hs/pull/256
+source-repository-package
+  type: git
+  location: git://github.com/georgefst/c2hs.git
