@@ -16,8 +16,8 @@ jobs:
     - uses: actions/setup-haskell@v1
       with:
         ghc-version: '8.10.2'
-        cabal-version: '3.0'
-        
+        cabal-version: '3.2'
+
     - name: Install libevdev
       run: sudo apt install -y libevdev-dev
 
