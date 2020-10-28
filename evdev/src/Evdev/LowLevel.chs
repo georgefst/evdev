@@ -141,7 +141,9 @@ withAbsInfo AbsInfo{..} f = do
 
 {- Simpler functions -}
 
-{#fun libevdev_has_property as hasProperty { `Device', devPropToInt `DeviceProperty' } -> `Bool' #}
+{#fun libevdev_has_property as hasProperty { `Device', convertEnum `DeviceProperty' } -> `Bool' #}
+{#fun libevdev_has_event_type as hasEventType { `Device', convertEnum `EventType' } -> `Bool' #}
+{#fun libevdev_has_event_code as hasEventCode { `Device', `Word16', `Word16' } -> `Bool' #}
 {#fun libevdev_get_fd as deviceFd { `Device' } -> `Fd' Fd #}
 {#fun libevdev_get_name as deviceName { `Device' } -> `IO ByteString' packCString #}
 {#fun libevdev_get_phys as devicePhys { `Device' } -> `IO ByteString' packCString #}
@@ -161,8 +163,8 @@ withAbsInfo AbsInfo{..} f = do
 
 {- Util -}
 
-devPropToInt :: DeviceProperty -> CUInt
-devPropToInt = fromIntegral . fromEnum
+convertEnum :: (Enum a, Integral b) => a -> b
+convertEnum = fromIntegral . fromEnum
 
 (.:) :: (c -> d) -> (a -> b -> c) -> a -> b -> d
 (.:) = (.) . (.)

@@ -11,6 +11,8 @@ module Evdev (
     deviceName,
     devicePath,
     deviceProperties,
+    deviceEventTypes,
+    deviceHasEvent,
     deviceFd,
     devicePhys,
     deviceUniq,
@@ -222,6 +224,13 @@ deviceVersion = LL.deviceVersion . cDevice
 deviceProperties :: Device -> IO [DeviceProperty]
 deviceProperties dev = filterM (LL.hasProperty $ cDevice dev) enumerate
 
+deviceEventTypes :: Device -> IO [EventType]
+deviceEventTypes dev = filterM (LL.hasEventType $ cDevice dev) enumerate
+
+--TODO this is an imperfect API since '_val' is ignored entirely
+deviceHasEvent :: Device -> EventData -> IO Bool
+deviceHasEvent dev e = LL.hasEventCode (cDevice dev) typ code
+  where (typ,code,_val) = toCEvent' e
 
 --TODO separate module?
 {- uinput -}
