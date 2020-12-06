@@ -1,3 +1,5 @@
+{-# LANGUAGE NumericUnderscores #-}
+
 module Main (main) where
 
 import Control.Monad
@@ -7,17 +9,16 @@ import qualified Evdev.Codes as Codes
 
 main :: IO ()
 main = do
-    dev <- newUDevice $ defaultNewUDevice "haskell-test"
+    dev <- newUDevice (defaultNewUDevice "haskell-test"){keys = keys'}
     forever $ do
-       _ <- getChar
-       writeBatch dev events
+        _ <- getChar
+        writeBatch dev events
 
 events :: [EventData]
-events = concat
-    [ [ KeyEvent k a | a <- [Pressed, Released] ]
-    | k <-
-        [ Codes.KeyLeftmeta
-        , Codes.KeyA
-        , Codes.KeyB
-        ]
+events = concat [[KeyEvent k a | a <- [Pressed, Released]] | k <- keys']
+
+keys' :: [Codes.Key]
+keys' =
+    [ Codes.KeyLeftctrl
+    , Codes.KeyLeftshift
     ]
