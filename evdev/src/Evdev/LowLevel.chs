@@ -1,7 +1,6 @@
 module Evdev.LowLevel where
 
 import Control.Monad (join)
-import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Loops (iterateWhile)
 import Data.ByteString (ByteString,packCString,useAsCString)
 import Data.Coerce (coerce)
@@ -11,7 +10,7 @@ import Foreign (Ptr,allocaBytes,mallocBytes,mallocForeignPtrBytes,newForeignPtr_
 import Foreign.C (CInt(..),CLong(..),CUInt(..),CUShort(..),CString)
 import Foreign.C.Error (Errno(Errno), eOK)
 import System.Posix.ByteString (RawFilePath)
-import System.Posix.IO.ByteString (OpenMode(ReadOnly),defaultFileFlags,openFd)
+import System.Posix.IO.ByteString (OpenMode(ReadOnly),defaultFileFlags,openFd,OpenFileFlags)
 import System.Posix.Types (Fd(Fd))
 
 import Evdev.Codes
@@ -104,6 +103,14 @@ grabDevice = libevdev_grab
 newDevice :: RawFilePath -> IO (Errno, Device)
 newDevice path = do
     fd <- openFd path ReadOnly Nothing defaultFileFlags
+    dev <- libevdev_new
+    err <- libevdev_set_fd dev fd
+    return (err, dev)
+
+-- Get access to non-blocking filedescriptors.
+newDevice' :: RawFilePath -> OpenFileFlags -> IO (Errno, Device)
+newDevice' path flags = do
+    fd <- openFd path ReadOnly Nothing flags
     dev <- libevdev_new
     err <- libevdev_set_fd dev fd
     return (err, dev)
