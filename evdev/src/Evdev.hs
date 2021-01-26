@@ -5,6 +5,7 @@ module Evdev (
     -- * Devices
     Device,
     newDevice,
+    newDevice',
     nextEvent,
     nextEventMay,
     evdevDir,
@@ -66,6 +67,7 @@ import Data.Word (Word16)
 import Foreign ((.|.))
 import Foreign.C (CUInt)
 import System.Posix.ByteString (Fd, RawFilePath)
+import System.Posix.IO.ByteString (OpenFileFlags)
 
 import qualified Evdev.LowLevel as LL
 import Evdev.Codes
@@ -127,6 +129,9 @@ convertFlags = fromIntegral . foldr ((.|.) . fromEnum) 0
 defaultReadFlags :: Set LL.ReadFlag
 defaultReadFlags = Set.fromList [LL.Normal, LL.Blocking]
 
+nonBlockingReadFlags :: Set LL.ReadFlag
+nonBlockingReadFlags = Set.fromList [LL.Normal]
+
 -- | Prevent other clients (including kernel-internal ones) from receiving events. Often a bad idea.
 grabDevice :: Device -> IO ()
 grabDevice = grabDevice' LL.LibevdevGrab
@@ -139,9 +144,12 @@ nextEvent :: Device -> IO Event
 nextEvent dev =
     fromCEvent <$> cErrCall "nextEvent" dev (LL.nextEvent (cDevice dev) (convertFlags defaultReadFlags))
 
+-- | Might get the next event from Device.
+-- Unless device was created with `O_NONBLOCK` by passing custom flags to
+-- `newDevice'` this function will act like `Just . nextEvent`.
 nextEventMay :: Device -> IO (Maybe Event)
 nextEventMay dev =
-    (fmap fromCEvent) <$> cErrCall "nextEventMay" dev (LL.nextEventMay (cDevice dev) (convertFlags defaultReadFlags))
+    (fmap fromCEvent) <$> cErrCall "nextEventMay" dev (LL.nextEventMay (cDevice dev) (convertFlags nonBlockingReadFlags))
 
 fromCEvent :: LL.CEvent -> Event
 fromCEvent (LL.CEvent t c v time) = Event (fromCEventData (t,c,v)) $ fromCTimeVal time
@@ -194,6 +202,11 @@ toCTimeVal t = LL.CTimeVal n (round $ f * 1_000_000)
 newDevice :: RawFilePath -> IO Device
 newDevice path = do
     dev <- cErrCall "newDevice" path $ LL.newDevice path
+    return $ Device dev path
+
+newDevice' :: RawFilePath -> OpenFileFlags -> IO Device
+newDevice' path flags = do
+    dev <- cErrCall "newDevice" path $ LL.newDevice' path flags
     return $ Device dev path
 
 -- | The usual directory containing devices (/"\/dev\/input"/).
