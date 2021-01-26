@@ -6,6 +6,7 @@ module Evdev (
     Device,
     newDevice,
     nextEvent,
+    nextEventMay,
     evdevDir,
     -- ** Properties
     deviceName,
@@ -137,6 +138,10 @@ ungrabDevice = grabDevice' LL.LibevdevUngrab
 nextEvent :: Device -> IO Event
 nextEvent dev =
     fromCEvent <$> cErrCall "nextEvent" dev (LL.nextEvent (cDevice dev) (convertFlags defaultReadFlags))
+
+nextEventMay :: Device -> IO (Maybe Event)
+nextEventMay dev =
+    (fmap fromCEvent) <$> cErrCall "nextEventMay" dev (LL.nextEventMay (cDevice dev) (convertFlags defaultReadFlags))
 
 fromCEvent :: LL.CEvent -> Event
 fromCEvent (LL.CEvent t c v time) = Event (fromCEventData (t,c,v)) $ fromCTimeVal time
