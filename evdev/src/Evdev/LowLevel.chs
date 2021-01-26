@@ -1,6 +1,7 @@
 module Evdev.LowLevel where
 
 import Control.Monad (join)
+import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Loops (iterateWhile)
 import Data.ByteString (ByteString,packCString,useAsCString)
 import Data.Coerce (coerce)
@@ -8,7 +9,7 @@ import Data.Int (Int32,Int64)
 import Data.Word (Word16)
 import Foreign (Ptr,allocaBytes,mallocBytes,mallocForeignPtrBytes,newForeignPtr_,nullPtr,peek,withForeignPtr)
 import Foreign.C (CInt(..),CLong(..),CUInt(..),CUShort(..),CString)
-import Foreign.C.Error (Errno(Errno))
+import Foreign.C.Error (Errno(Errno), eOK)
 import System.Posix.ByteString (RawFilePath)
 import System.Posix.IO.ByteString (OpenMode(ReadOnly),defaultFileFlags,openFd)
 import System.Posix.Types (Fd(Fd))
@@ -73,6 +74,25 @@ nextEvent dev flags = allocaBytes {#sizeof input_event #} $ \evPtr ->
                 <*> (coerce <$> {#get input_event->time.tv_usec #} evPtr)
             )
         )
+
+nextEventMay :: Device -> CUInt -> IO (Errno, Maybe CEvent)
+nextEventMay dev flags = allocaBytes {#sizeof input_event #} $ \evPtr -> do
+    err <- libevdev_next_event dev flags evPtr
+    if err /= eOK
+        then return
+            $ ( if err == Errno (-{#const EAGAIN #}) then eOK else err
+              , Nothing
+              )
+        else (\x -> (eOK, Just x))
+            <$> ( CEvent
+                <$> (coerce <$> {#get input_event->type #} evPtr)
+                <*> (coerce <$> {#get input_event->code #} evPtr)
+                <*> (coerce <$> {#get input_event->value #} evPtr)
+                <*> ( CTimeVal
+                    <$> (coerce <$> {#get input_event->time.tv_sec #} evPtr)
+                    <*> (coerce <$> {#get input_event->time.tv_usec #} evPtr)
+                    )
+                )
 
 {#fun libevdev_grab { `Device', `GrabMode' } -> `Errno' Errno #}
 grabDevice :: Device -> GrabMode -> IO Errno
