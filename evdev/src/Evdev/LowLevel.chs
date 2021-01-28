@@ -63,7 +63,7 @@ data CTimeVal = CTimeVal
 {#fun libevdev_next_event { `Device', `CUInt', `Ptr ()' } -> `Errno' Errno #}
 nextEvent :: Device -> CUInt -> IO (Errno, CEvent)
 nextEvent dev flags = allocaBytes {#sizeof input_event #} $ \evPtr ->
-    (,) <$> iterateWhile (== Errno (-{#const EAGAIN #})) (libevdev_next_event dev flags evPtr)
+    (,) <$> libevdev_next_event dev flags evPtr
         <*> ( CEvent
             <$> (coerce <$> {#get input_event->type #} evPtr)
             <*> (coerce <$> {#get input_event->code #} evPtr)
