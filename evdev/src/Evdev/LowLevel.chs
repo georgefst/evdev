@@ -100,20 +100,9 @@ grabDevice = libevdev_grab
 --TODO use 'libevdev_new_from_fd' when https://github.com/haskell/c2hs/issues/236 fixed
 {#fun libevdev_new {} -> `Device' #}
 {#fun libevdev_set_fd { `Device', unFd `Fd' } -> `Errno' Errno #}
-newDevice :: RawFilePath -> IO (Errno, Device)
-newDevice path = do
-    fd <- openFd path ReadOnly Nothing defaultFileFlags
-    dev <- libevdev_new
-    err <- libevdev_set_fd dev fd
-    return (err, dev)
-
--- Get access to non-blocking filedescriptors.
-newDevice' :: RawFilePath -> OpenFileFlags -> IO (Errno, Device)
-newDevice' path flags = do
-    fd <- openFd path ReadOnly Nothing flags
-    dev <- libevdev_new
-    err <- libevdev_set_fd dev fd
-    return (err, dev)
+-- General constructor for Device
+newDeviceFromFd :: Fd -> IO (Errno, Device)
+newDeviceFromFd fd = libevdev_new >>= \dev -> (, dev) <$> libevdev_set_fd dev fd
 
 --TODO 'useAsCString' copies, which seems unnecessary due to the 'const' in the C function
 {#fun libevdev_set_name { `Device', `CString' } -> `()' #}
