@@ -5,7 +5,7 @@ module Evdev (
     -- * Devices
     Device,
     newDevice,
-    newDevice',
+    newDeviceFromFd,
     nextEvent,
     nextEventMay,
     evdevDir,
@@ -67,7 +67,7 @@ import Data.Word (Word16)
 import Foreign ((.|.))
 import Foreign.C (CUInt)
 import System.Posix.ByteString (Fd, RawFilePath)
-import System.Posix.IO.ByteString (OpenFileFlags)
+import System.Posix.IO.ByteString (OpenMode(ReadOnly),defaultFileFlags,openFd)
 
 import qualified Evdev.LowLevel as LL
 import Evdev.Codes
@@ -145,8 +145,8 @@ nextEvent dev =
     fromCEvent <$> cErrCall "nextEvent" dev (LL.nextEvent (cDevice dev) (convertFlags defaultReadFlags))
 
 -- | Might get the next event from Device.
--- Unless device was created with `O_NONBLOCK` by passing custom flags to
--- `newDevice'` this function will act like `Just . nextEvent`.
+-- Unless `Device' was created from a non-blocking file descriptor
+-- this function will just function like `nextEvent' wrapped in `Maybe'.
 nextEventMay :: Device -> IO (Maybe Event)
 nextEventMay dev =
     (fmap fromCEvent) <$> cErrCall "nextEventMay" dev (LL.nextEventMay (cDevice dev) (convertFlags nonBlockingReadFlags))
@@ -200,14 +200,15 @@ toCTimeVal t = LL.CTimeVal n (round $ f * 1_000_000)
 
 -- | Create a device from a valid path - usually /\/dev\/input\/eventX/ for some /X/.
 newDevice :: RawFilePath -> IO Device
-newDevice path = do
-    dev <- cErrCall "newDevice" path $ LL.newDevice path
-    return $ Device dev path
+newDevice path = newDeviceFromFd (Just path) =<< openFd path ReadOnly Nothing defaultFileFlags
 
-newDevice' :: RawFilePath -> OpenFileFlags -> IO Device
-newDevice' path flags = do
-    dev <- cErrCall "newDevice" path $ LL.newDevice' path flags
-    return $ Device dev path
+-- | General constructor for a Device.
+-- WARNING: The resulting `Device' will have the GC close your `Fd'.
+newDeviceFromFd :: Maybe RawFilePath -> Fd -> IO Device
+newDeviceFromFd path =
+  let path' = maybe "" id path
+  -- It is probably bad manners to flip a record type.
+  in fmap (flip Device path') . cErrCall "newDeviceFromFd" path' . LL.newDeviceFromFd
 
 -- | The usual directory containing devices (/"\/dev\/input"/).
 evdevDir :: RawFilePath
