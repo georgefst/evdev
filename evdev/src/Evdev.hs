@@ -85,7 +85,7 @@ import Evdev.Codes
 -- stores path that was originally used, as it seems impossible to recover this later
 -- We don't allow the user to access the underlying low-level C device.
 -- | An input device.
-data Device = Device { cDevice :: LL.Device, devicePath :: String }
+data Device = Device { cDevice :: LL.Device, devicePath :: ByteString }
 
 
 instance Show Device where
@@ -221,7 +221,7 @@ newDeviceFromFd fd = do
   dev <- cErrCall "newDeviceFromFd" () $ LL.newDeviceFromFd fd
   pid <- getProcessID
   path <- readSymbolicLink $ "/proc/" <> show pid <> "/fd/" <> show fd
-  return $ Device { cDevice = dev, devicePath = path }
+  return $ Device { cDevice = dev, devicePath = BS.pack path }
 
 -- | The usual directory containing devices (/"\/dev\/input"/).
 evdevDir :: RawFilePath
