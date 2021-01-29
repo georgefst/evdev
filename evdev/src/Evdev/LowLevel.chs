@@ -1,16 +1,13 @@
 module Evdev.LowLevel where
 
 import Control.Monad (join)
-import Control.Monad.Loops (iterateWhile)
 import Data.ByteString (ByteString,packCString,useAsCString)
 import Data.Coerce (coerce)
 import Data.Int (Int32,Int64)
 import Data.Word (Word16)
 import Foreign (Ptr,allocaBytes,mallocBytes,mallocForeignPtrBytes,newForeignPtr_,nullPtr,peek,withForeignPtr)
 import Foreign.C (CInt(..),CLong(..),CUInt(..),CUShort(..),CString)
-import Foreign.C.Error (Errno(Errno), eOK)
-import System.Posix.ByteString (RawFilePath)
-import System.Posix.IO.ByteString (OpenMode(ReadOnly),defaultFileFlags,openFd,OpenFileFlags)
+import Foreign.C.Error (Errno(Errno), eOK, eAGAIN)
 import System.Posix.Types (Fd(Fd))
 
 import Evdev.Codes
@@ -60,6 +57,11 @@ data CTimeVal = CTimeVal
 
 {- Complex stuff -}
 
+-- Maybe we should just patch upstream. Wrrno only has an Eq instance.
+-- That just seems a bit too restrictive to me... :/
+negateErrno :: Errno -> Errno
+negateErrno (Errno cint) = Errno (- cint)
+
 {#fun libevdev_next_event { `Device', `CUInt', `Ptr ()' } -> `Errno' Errno #}
 nextEvent :: Device -> CUInt -> IO (Errno, CEvent)
 nextEvent dev flags = allocaBytes {#sizeof input_event #} $ \evPtr ->
@@ -79,7 +81,7 @@ nextEventMay dev flags = allocaBytes {#sizeof input_event #} $ \evPtr -> do
     err <- libevdev_next_event dev flags evPtr
     if err /= eOK
         then return
-            $ ( if err == Errno (-{#const EAGAIN #}) then eOK else err
+            $ ( if negateErrno err == eAGAIN then eOK else err
               , Nothing
               )
         else (\x -> (eOK, Just x))

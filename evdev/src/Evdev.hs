@@ -84,6 +84,8 @@ import Evdev.Codes
 -- We don't allow the user to access the underlying low-level C device.
 -- | An input device.
 data Device = Device { cDevice :: LL.Device, devicePath :: RawFilePath }
+
+
 instance Show Device where
     show = show . devicePath
 
@@ -208,15 +210,15 @@ toCTimeVal t = LL.CTimeVal n (round $ f * 1_000_000)
 
 -- | Create a device from a valid path - usually /\/dev\/input\/eventX/ for some /X/.
 newDevice :: RawFilePath -> IO Device
-newDevice path = newDeviceFromFd (Just path) =<< openFd path ReadOnly Nothing defaultFileFlags
+newDevice path = newDeviceFromFd =<< openFd path ReadOnly Nothing defaultFileFlags
 
 -- | General constructor for a Device.
--- WARNING: The resulting `Device' will have the GC close your `Fd'.
-newDeviceFromFd :: Maybe RawFilePath -> Fd -> IO Device
-newDeviceFromFd path =
-  let path' = maybe "" id path
-  -- It is probably bad manners to flip a record type.
-  in fmap (flip Device path') . cErrCall "newDeviceFromFd" path' . LL.newDeviceFromFd
+-- WARNING: The resulting `Device' will have the GC close your `Fd' with its custom finalizer.
+newDeviceFromFd :: Fd -> IO Device
+newDeviceFromFd fd = do
+  dev <- cErrCall "newDeviceFromFd" () $ LL.newDeviceFromFd fd
+  path <- join $ LL.deviceName dev
+  return $ Device { cDevice = dev, devicePath = path }
 
 -- | The usual directory containing devices (/"\/dev\/input"/).
 evdevDir :: RawFilePath
@@ -357,7 +359,7 @@ instance CErrInfo () where
 instance CErrInfo RawFilePath where
     cErrInfo = pure . pure
 instance CErrInfo Device where
-    cErrInfo = return . Just . devicePath
+    cErrInfo = fmap Just . deviceName
 instance CErrInfo LL.UDevice where
     cErrInfo = LL.getSyspath
 -- for c actions which return an error value (0 for success)
