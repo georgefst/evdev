@@ -66,6 +66,8 @@ import Data.Tuple.Extra (uncurry3)
 import Data.Word (Word16)
 import Foreign ((.|.))
 import Foreign.C (CUInt)
+import System.Posix.Process (getProcessID)
+import System.Posix.Files (readSymbolicLink)
 import System.Posix.ByteString (Fd, RawFilePath)
 import System.Posix.IO.ByteString (OpenMode(ReadOnly),defaultFileFlags,openFd)
 
@@ -76,7 +78,7 @@ import Util
 -- stores path that was originally used, as it seems impossible to recover this later
 -- We don't allow the user to access the underlying low-level C device.
 -- | An input device.
-data Device = Device { cDevice :: LL.Device, devicePath :: RawFilePath }
+data Device = Device { cDevice :: LL.Device, devicePath :: String }
 
 
 instance Show Device where
@@ -209,7 +211,8 @@ newDevice path = newDeviceFromFd =<< openFd path ReadOnly Nothing defaultFileFla
 newDeviceFromFd :: Fd -> IO Device
 newDeviceFromFd fd = do
   dev <- cErrCall "newDeviceFromFd" () $ LL.newDeviceFromFd fd
-  path <- join $ LL.deviceName dev
+  pid <- getProcessID
+  path <- readSymbolicLink $ "/proc/" <> show pid <> "/fd/" <> show fd
   return $ Device { cDevice = dev, devicePath = path }
 
 -- | The usual directory containing devices (/"\/dev\/input"/).
