@@ -5,9 +5,7 @@ module Evdev (
     -- * Devices
     Device,
     newDevice,
-    newDeviceFromFd,
     nextEvent,
-    nextEventMay,
     evdevDir,
     -- ** Properties
     deviceName,
@@ -33,7 +31,10 @@ module Evdev (
     EventCode(..),
     EventValue(..),
 
-    -- * Lower-level types
+    -- * Lower-level
+    newDeviceFromFd,
+    nextEventMay,
+    -- ** C-style types
     -- | These correspond more directly to C's /input_event/ and /timeval/.
     -- They are used internally, but may be useful for advanced users.
     LL.CEvent(..),
@@ -73,11 +74,11 @@ import Data.Tuple.Extra (uncurry3)
 import Data.Word (Word16)
 import Foreign (Ptr, nullPtr, (.|.))
 import Foreign.C (CUInt)
-import Foreign.C.Error (Errno(Errno), errnoToIOError)
-import System.Posix.Process (getProcessID)
-import System.Posix.Files (readSymbolicLink)
+import Foreign.C.Error (Errno (Errno), errnoToIOError)
 import System.Posix.ByteString (Fd, RawFilePath)
-import System.Posix.IO.ByteString (OpenMode(ReadOnly),defaultFileFlags,openFd)
+import System.Posix.Files (readSymbolicLink)
+import System.Posix.IO.ByteString (OpenMode (ReadOnly), defaultFileFlags, openFd)
+import System.Posix.Process (getProcessID)
 
 import qualified Evdev.LowLevel as LL
 import Evdev.Codes
@@ -156,12 +157,12 @@ nextEvent :: Device -> IO Event
 nextEvent dev =
     fromCEvent <$> cErrCall "nextEvent" dev (LL.nextEvent (cDevice dev) (convertFlags defaultReadFlags))
 
--- | Might get the next event from Device.
--- Unless `Device' was created from a non-blocking file descriptor
--- this function will just function like `nextEvent' wrapped in `Maybe'.
+{- | Get the next event from the device, if one is available.
+Designed for use with devices created from a non-blocking file descriptor. Otherwise equal to @fmap Just . nextEvent@.
+-}
 nextEventMay :: Device -> IO (Maybe Event)
 nextEventMay dev =
-    (fmap fromCEvent) <$> cErrCall "nextEventMay" dev (LL.nextEventMay (cDevice dev) (convertFlags nonBlockingReadFlags))
+    fmap fromCEvent <$> cErrCall "nextEventMay" dev (LL.nextEventMay (cDevice dev) (convertFlags nonBlockingReadFlags))
 
 fromCEvent :: LL.CEvent -> Event
 fromCEvent (LL.CEvent t (EventCode -> c) (EventValue -> v) time) = Event event $ fromCTimeVal time
@@ -214,14 +215,19 @@ toCTimeVal t = LL.CTimeVal n (round $ f * 1_000_000)
 newDevice :: RawFilePath -> IO Device
 newDevice path = newDeviceFromFd =<< openFd path ReadOnly Nothing defaultFileFlags
 
--- | General constructor for a Device.
--- WARNING: The resulting `Device' will have the GC close your `Fd' with its custom finalizer.
+{- | Generalisation of 'newDevice'.
+Note that:
+
+> newDevice path = newDeviceFromFd =<< openFd path ReadOnly Nothing defaultFileFlags
+
+__WARNING__: Don't attempt to reuse the 'Fd' - it will be closed when the 'Device' is garbage collected.
+-}
 newDeviceFromFd :: Fd -> IO Device
 newDeviceFromFd fd = do
-  dev <- cErrCall "newDeviceFromFd" () $ LL.newDeviceFromFd fd
-  pid <- getProcessID
-  path <- readSymbolicLink $ "/proc/" <> show pid <> "/fd/" <> show fd
-  return $ Device { cDevice = dev, devicePath = BS.pack path }
+    dev <- cErrCall "newDeviceFromFd" () $ LL.newDeviceFromFd fd
+    pid <- getProcessID
+    path <- readSymbolicLink $ "/proc/" <> show pid <> "/fd/" <> show fd
+    return $ Device{cDevice = dev, devicePath = BS.pack path}
 
 -- | The usual directory containing devices (/"\/dev\/input"/).
 evdevDir :: RawFilePath

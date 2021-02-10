@@ -57,43 +57,28 @@ data CTimeVal = CTimeVal
 
 {- Complex stuff -}
 
--- Maybe we should just patch upstream. Wrrno only has an Eq instance.
--- That just seems a bit too restrictive to me... :/
-negateErrno :: Errno -> Errno
-negateErrno (Errno cint) = Errno (- cint)
-
 {#fun libevdev_next_event { `Device', `CUInt', `Ptr ()' } -> `Errno' Errno #}
 nextEvent :: Device -> CUInt -> IO (Errno, CEvent)
 nextEvent dev flags = allocaBytes {#sizeof input_event #} $ \evPtr ->
-    (,) <$> libevdev_next_event dev flags evPtr
-        <*> ( CEvent
-            <$> (coerce <$> {#get input_event->type #} evPtr)
-            <*> (coerce <$> {#get input_event->code #} evPtr)
-            <*> (coerce <$> {#get input_event->value #} evPtr)
-            <*> ( CTimeVal
-                <$> (coerce <$> {#get input_event->time.tv_sec #} evPtr)
-                <*> (coerce <$> {#get input_event->time.tv_usec #} evPtr)
-            )
-        )
-
+    (,) <$> libevdev_next_event dev flags evPtr <*> getEvent evPtr
 nextEventMay :: Device -> CUInt -> IO (Errno, Maybe CEvent)
 nextEventMay dev flags = allocaBytes {#sizeof input_event #} $ \evPtr -> do
     err <- libevdev_next_event dev flags evPtr
     if err /= eOK
         then return
-            $ ( if negateErrno err == eAGAIN then eOK else err
-              , Nothing
-              )
-        else (\x -> (eOK, Just x))
-            <$> ( CEvent
-                <$> (coerce <$> {#get input_event->type #} evPtr)
-                <*> (coerce <$> {#get input_event->code #} evPtr)
-                <*> (coerce <$> {#get input_event->value #} evPtr)
-                <*> ( CTimeVal
-                    <$> (coerce <$> {#get input_event->time.tv_sec #} evPtr)
-                    <*> (coerce <$> {#get input_event->time.tv_usec #} evPtr)
-                    )
-                )
+            ( if negateErrno err == eAGAIN then eOK else err
+            , Nothing
+            )
+        else (eOK,) . Just <$> getEvent evPtr
+getEvent :: Ptr () -> IO CEvent
+getEvent evPtr = CEvent
+    <$> (coerce <$> {#get input_event->type #} evPtr)
+    <*> (coerce <$> {#get input_event->code #} evPtr)
+    <*> (coerce <$> {#get input_event->value #} evPtr)
+    <*> ( CTimeVal
+        <$> (coerce <$> {#get input_event->time.tv_sec #} evPtr)
+        <*> (coerce <$> {#get input_event->time.tv_usec #} evPtr)
+        )
 
 {#fun libevdev_grab { `Device', `GrabMode' } -> `Errno' Errno #}
 grabDevice :: Device -> GrabMode -> IO Errno
@@ -102,7 +87,6 @@ grabDevice = libevdev_grab
 --TODO use 'libevdev_new_from_fd' when https://github.com/haskell/c2hs/issues/236 fixed
 {#fun libevdev_new {} -> `Device' #}
 {#fun libevdev_set_fd { `Device', unFd `Fd' } -> `Errno' Errno #}
--- General constructor for Device
 newDeviceFromFd :: Fd -> IO (Errno, Device)
 newDeviceFromFd fd = libevdev_new >>= \dev -> (, dev) <$> libevdev_set_fd dev fd
 
@@ -195,3 +179,6 @@ handleNull def f p = if p == nullPtr then def else f p
 
 packCString' :: CString -> IO (Maybe ByteString)
 packCString' = handleNull (return Nothing) (fmap Just . packCString)
+
+negateErrno :: Errno -> Errno
+negateErrno (Errno cint) = Errno (-cint)
