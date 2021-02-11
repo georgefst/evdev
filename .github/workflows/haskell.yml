@@ -19,7 +19,12 @@ jobs:
         cabal-version: '3.0'
         
     - name: Set user input permissions
-      run: sudo usermod -a -G input runner
+      run: |
+        sudo usermod -a -G input $USER
+        sudo groupadd uinput
+        sudo usermod -a -G uinput $USER
+        echo 'KERNEL=="uinput", GROUP="uinput", MODE:="0660", OPTIONS+="static_node=uinput"' | sudo tee -a /etc/udev/rules.d/99-uinput.rules > /dev/null
+      
       
     - name: Install libevdev
       run: sudo apt install -y libevdev-dev
