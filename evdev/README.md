@@ -8,3 +8,7 @@ It aims to expose the full set of functionality exposed by `libevdev`, while pro
 Your user will need to be a member of the `input` group in order to read from devices. Try `usermod -a -G input [username]`.
 
 For a higher-level, more functional API based on event streams, see [evdev-streamly](http://hackage.haskell.org/package/evdev-streamly).
+
+This package uses `ByteString`s (a.k.a `RawFilePath`s) ubiquitously. You may want to substitute use of packages like `filepath`, `directory`, `unix` and `process` with `ByteString`-friendly alternatives:
+- [rawfilepath](https://hackage.haskell.org/package/rawfilepath)
+- [filepath-bytestring](https://hackage.haskell.org/package/filepath-bytestring)
