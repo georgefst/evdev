@@ -26,6 +26,12 @@ jobs:
         echo 'KERNEL=="uinput", GROUP="uinput", MODE:="0660", OPTIONS+="static_node=uinput"' | sudo tee -a /etc/udev/rules.d/99-uinput.rules > /dev/null
         sudo udevadm control --reload-rules
         sudo udevadm trigger
+        
+    - name: Check permissions 1
+      run: groups $USER
+      
+    - name: Check permissions 2
+      run: ls -l /dev/uinput
       
     - name: Install libevdev
       run: sudo apt install -y libevdev-dev
