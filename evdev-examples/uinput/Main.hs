@@ -4,6 +4,7 @@ import Control.Monad
 
 import Evdev
 import qualified Evdev.Codes as Codes
+import Evdev.Uinput
 
 main :: IO ()
 main = do

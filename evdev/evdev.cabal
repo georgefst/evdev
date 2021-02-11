@@ -53,8 +53,10 @@ library
     exposed-modules:
         Evdev
         Evdev.Codes
+        Evdev.Uinput
     other-modules:
         Evdev.LowLevel
+        Util
     hs-source-dirs: src
     c-sources:
         src-c/evdev-hs.c

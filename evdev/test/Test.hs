@@ -10,6 +10,7 @@ import Data.Functor
 import Data.Maybe
 import Evdev
 import Evdev.Codes
+import Evdev.Uinput
 import RawFilePath
 import System.FilePath.ByteString
 import System.IO.Error
