@@ -84,7 +84,6 @@ data Event = Event
     }
     deriving (Eq, Ord, Show)
 
---TODO name?
 -- | An input event, without the timestamp.
 -- Each constructor corresponds to one [event type](https://www.kernel.org/doc/html/latest/input/event-codes.html#event-types), except for 'UnknownEvent'.
 data EventData
