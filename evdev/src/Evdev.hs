@@ -106,16 +106,14 @@ data EventData
     | UnknownEvent Word16 EventCode EventValue {- ^ We include this primarily so that 'fromCEvent' can be well-defined -
         let us know if you ever actually see one emitted by a device, as it would likely
         indicate a shortcoming in the library. -}
-    deriving (Eq, Ord, Read, Show)
+    deriving (Eq, Ord, Show)
 
 -- | A direct representation of the /code/ field of the C /input_event/, for when there is no obvious meaningful sum type.
 newtype EventCode = EventCode Word16
-    deriving stock (Eq, Ord, Read, Show)
-    deriving newtype (Enum, Integral, Real, Num) --TODO all this baggage to make 'toEnum'' slightly easier?
+    deriving (Eq, Ord, Show, Enum)
 -- | A direct representation of the /value/ field of the C /input_event/, for when there is no obvious meaningful sum type.
 newtype EventValue = EventValue Int32
-    deriving stock (Eq, Ord, Read, Show)
-    deriving newtype (Enum, Integral, Real, Num)
+    deriving (Eq, Ord, Show, Enum)
 
 -- | The status of a key.
 data KeyEvent
@@ -272,12 +270,12 @@ open c2hs issue
         this doesn't necessarily consider enum defines though - discussion is around capturing the semantics of actual C enums
     alternatively, monomorphic functions for each type, as with c2hs's with* functions
 -}
-toEnum' :: forall k a. (Integral k, Bounded a, Enum a) => k -> Maybe a
+toEnum' :: forall k a. (Ord k, Enum k, Bounded a, Enum a) => k -> Maybe a
 toEnum' = (enumMap !?)
   where
     --TODO HashMap, IntMap?
     enumMap :: Map k a
-    enumMap = Map.fromList $ map (fromIntegral . fromEnum &&& id) enumerate
+    enumMap = Map.fromList $ map (toEnum . fromEnum &&& id) enumerate
 
 instance CErrInfo Device where
     cErrInfo = return . Just . devicePath
