@@ -2,13 +2,13 @@ module Main (main) where
 
 import Control.Monad
 
-import Evdev
+import Evdev (EventData (..), KeyEvent (..))
 import qualified Evdev.Codes as Codes
 import Evdev.Uinput
 
 main :: IO ()
 main = do
-    dev <- newUDevice (defaultNewUDevice "haskell-test"){keys = keys'}
+    dev <- newDevice "haskell-test" defaultDeviceOpts{keys = keys'}
     forever $ do
         _ <- getChar
         writeBatch dev events

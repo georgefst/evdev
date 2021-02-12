@@ -11,7 +11,7 @@ import Data.Maybe
 import Data.Time
 import Evdev
 import Evdev.Codes
-import Evdev.Uinput
+import qualified Evdev.Uinput as Uinput
 import RawFilePath
 import System.FilePath.ByteString
 import System.IO.Error
@@ -31,10 +31,10 @@ smoke = testCase "Smoke" do
     let duName = "evdev-test-device"
         keys = [Key1 .. Key0]
         evs = concatMap ((<$> [Pressed, Released]) . KeyEvent) keys
-    du <- newUDevice (defaultNewUDevice duName){keys}
+    du <- Uinput.newDevice duName Uinput.defaultDeviceOpts{Uinput.keys}
     void $ forkIO do
         takeMVar start -- wait until reading device is initialised
-        writeBatch du evs
+        Uinput.writeBatch du evs
     listDirectory evdevDir
         >>= traverse (fmap eitherToMaybe . try @IOError . (retryIf isPermissionError . newDevice) . (evdevDir </>))
         >>= findM (fmap (== duName) . deviceName) . catMaybes
