@@ -75,3 +75,5 @@ test-suite test
         tasty ^>= 1.4.1,
         tasty-hunit ^>= 0.10.0.3,
         tasty-quickcheck ^>= 0.10.1.1,
+    ghc-options:
+        -threaded
