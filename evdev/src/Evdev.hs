@@ -53,7 +53,7 @@ module Evdev (
 
 import Control.Arrow ((&&&))
 import Control.Monad (filterM, join)
-import Data.ByteString.Char8 (ByteString)
+import Data.ByteString.Char8 (ByteString, pack)
 import Data.Int (Int32)
 import Data.List.Extra (enumerate)
 import Data.Map ((!?), Map)
@@ -70,9 +70,7 @@ import Foreign.C (CUInt)
 import System.Posix.Process (getProcessID)
 import System.Posix.Files (readSymbolicLink)
 import System.Posix.ByteString (Fd, RawFilePath)
-import System.Posix.Files (readSymbolicLink)
 import System.Posix.IO.ByteString (OpenMode (ReadOnly), defaultFileFlags, openFd)
-import System.Posix.Process (getProcessID)
 
 import qualified Evdev.LowLevel as LL
 import Evdev.Codes
@@ -221,7 +219,7 @@ newDeviceFromFd fd = do
     dev <- cErrCall "newDeviceFromFd" () $ LL.newDeviceFromFd fd
     pid <- getProcessID
     path <- readSymbolicLink $ "/proc/" <> show pid <> "/fd/" <> show fd
-    return $ Device{cDevice = dev, devicePath = BS.pack path}
+    return $ Device{cDevice = dev, devicePath = pack path}
 
 -- | The usual directory containing devices (/"\/dev\/input"/).
 evdevDir :: RawFilePath
