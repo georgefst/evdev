@@ -1,16 +1,13 @@
 module Evdev.LowLevel where
 
 import Control.Monad (join)
-import Control.Monad.Loops (iterateWhile)
 import Data.ByteString (ByteString,packCString,useAsCString)
 import Data.Coerce (coerce)
 import Data.Int (Int32,Int64)
 import Data.Word (Word16)
 import Foreign (Ptr,allocaBytes,mallocBytes,mallocForeignPtrBytes,newForeignPtr_,nullPtr,peek,withForeignPtr)
 import Foreign.C (CInt(..),CLong(..),CUInt(..),CUShort(..),CString)
-import Foreign.C.Error (Errno(Errno))
-import System.Posix.ByteString (RawFilePath)
-import System.Posix.IO.ByteString (OpenMode(ReadOnly),defaultFileFlags,openFd)
+import Foreign.C.Error (Errno(Errno), eOK, eAGAIN)
 import System.Posix.Types (Fd(Fd))
 
 import Evdev.Codes
@@ -63,15 +60,24 @@ data CTimeVal = CTimeVal
 {#fun libevdev_next_event { `Device', `CUInt', `Ptr ()' } -> `Errno' Errno #}
 nextEvent :: Device -> CUInt -> IO (Errno, CEvent)
 nextEvent dev flags = allocaBytes {#sizeof input_event #} $ \evPtr ->
-    (,) <$> iterateWhile (== Errno (-{#const EAGAIN #})) (libevdev_next_event dev flags evPtr)
-        <*> ( CEvent
-            <$> (coerce <$> {#get input_event->type #} evPtr)
-            <*> (coerce <$> {#get input_event->code #} evPtr)
-            <*> (coerce <$> {#get input_event->value #} evPtr)
-            <*> ( CTimeVal
-                <$> (coerce <$> {#get input_event->time.tv_sec #} evPtr)
-                <*> (coerce <$> {#get input_event->time.tv_usec #} evPtr)
+    (,) <$> libevdev_next_event dev flags evPtr <*> getEvent evPtr
+nextEventMay :: Device -> CUInt -> IO (Errno, Maybe CEvent)
+nextEventMay dev flags = allocaBytes {#sizeof input_event #} $ \evPtr -> do
+    err <- libevdev_next_event dev flags evPtr
+    if err /= eOK
+        then return
+            ( if negateErrno err == eAGAIN then eOK else err
+            , Nothing
             )
+        else (eOK,) . Just <$> getEvent evPtr
+getEvent :: Ptr () -> IO CEvent
+getEvent evPtr = CEvent
+    <$> (coerce <$> {#get input_event->type #} evPtr)
+    <*> (coerce <$> {#get input_event->code #} evPtr)
+    <*> (coerce <$> {#get input_event->value #} evPtr)
+    <*> ( CTimeVal
+        <$> (coerce <$> {#get input_event->time.tv_sec #} evPtr)
+        <*> (coerce <$> {#get input_event->time.tv_usec #} evPtr)
         )
 
 {#fun libevdev_grab { `Device', `GrabMode' } -> `Errno' Errno #}
@@ -81,12 +87,8 @@ grabDevice = libevdev_grab
 --TODO use 'libevdev_new_from_fd' when https://github.com/haskell/c2hs/issues/236 fixed
 {#fun libevdev_new {} -> `Device' #}
 {#fun libevdev_set_fd { `Device', unFd `Fd' } -> `Errno' Errno #}
-newDevice :: RawFilePath -> IO (Errno, Device)
-newDevice path = do
-    fd <- openFd path ReadOnly Nothing defaultFileFlags
-    dev <- libevdev_new
-    err <- libevdev_set_fd dev fd
-    return (err, dev)
+newDeviceFromFd :: Fd -> IO (Errno, Device)
+newDeviceFromFd fd = libevdev_new >>= \dev -> (, dev) <$> libevdev_set_fd dev fd
 
 --TODO 'useAsCString' copies, which seems unnecessary due to the 'const' in the C function
 {#fun libevdev_set_name { `Device', `CString' } -> `()' #}
@@ -177,3 +179,6 @@ handleNull def f p = if p == nullPtr then def else f p
 
 packCString' :: CString -> IO (Maybe ByteString)
 packCString' = handleNull (return Nothing) (fmap Just . packCString)
+
+negateErrno :: Errno -> Errno
+negateErrno (Errno cint) = Errno (-cint)

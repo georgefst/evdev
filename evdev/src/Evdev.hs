@@ -31,7 +31,10 @@ module Evdev (
     EventCode(..),
     EventValue(..),
 
-    -- * Lower-level types
+    -- * Lower-level
+    newDeviceFromFd,
+    nextEventMay,
+    -- ** C-style types
     -- | These correspond more directly to C's /input_event/ and /timeval/.
     -- They are used internally, but may be useful for advanced users.
     LL.CEvent(..),
@@ -50,7 +53,7 @@ module Evdev (
 
 import Control.Arrow ((&&&))
 import Control.Monad (filterM, join)
-import Data.ByteString.Char8 (ByteString)
+import Data.ByteString.Char8 (ByteString, pack)
 import Data.Int (Int32)
 import Data.List.Extra (enumerate)
 import Data.Map ((!?), Map)
@@ -64,7 +67,10 @@ import Data.Tuple.Extra (uncurry3)
 import Data.Word (Word16)
 import Foreign ((.|.))
 import Foreign.C (CUInt)
+import System.Posix.Process (getProcessID)
+import System.Posix.Files (readSymbolicLink)
 import System.Posix.ByteString (Fd, RawFilePath)
+import System.Posix.IO.ByteString (OpenMode (ReadOnly), defaultFileFlags, openFd)
 
 import qualified Evdev.LowLevel as LL
 import Evdev.Codes
@@ -73,7 +79,9 @@ import Util
 -- stores path that was originally used, as it seems impossible to recover this later
 -- We don't allow the user to access the underlying low-level C device.
 -- | An input device.
-data Device = Device { cDevice :: LL.Device, devicePath :: RawFilePath }
+data Device = Device { cDevice :: LL.Device, devicePath :: ByteString }
+
+
 instance Show Device where
     show = show . devicePath
 
@@ -126,6 +134,9 @@ convertFlags = fromIntegral . foldr ((.|.) . fromEnum) 0
 defaultReadFlags :: Set LL.ReadFlag
 defaultReadFlags = Set.fromList [LL.Normal, LL.Blocking]
 
+nonBlockingReadFlags :: Set LL.ReadFlag
+nonBlockingReadFlags = Set.fromList [LL.Normal]
+
 -- | Prevent other clients (including kernel-internal ones) from receiving events. Often a bad idea.
 grabDevice :: Device -> IO ()
 grabDevice = grabDevice' LL.LibevdevGrab
@@ -137,6 +148,13 @@ ungrabDevice = grabDevice' LL.LibevdevUngrab
 nextEvent :: Device -> IO Event
 nextEvent dev =
     fromCEvent <$> cErrCall "nextEvent" dev (LL.nextEvent (cDevice dev) (convertFlags defaultReadFlags))
+
+{- | Get the next event from the device, if one is available.
+Designed for use with devices created from a non-blocking file descriptor. Otherwise equal to @fmap Just . nextEvent@.
+-}
+nextEventMay :: Device -> IO (Maybe Event)
+nextEventMay dev =
+    fmap fromCEvent <$> cErrCall "nextEventMay" dev (LL.nextEventMay (cDevice dev) (convertFlags nonBlockingReadFlags))
 
 fromCEvent :: LL.CEvent -> Event
 fromCEvent (LL.CEvent t c v time) = Event (fromCEventData (t,c,v)) $ fromCTimeVal time
@@ -187,9 +205,21 @@ toCTimeVal t = LL.CTimeVal n (round $ f * 1_000_000)
 
 -- | Create a device from a valid path - usually /\/dev\/input\/eventX/ for some /X/.
 newDevice :: RawFilePath -> IO Device
-newDevice path = do
-    dev <- cErrCall "newDevice" path $ LL.newDevice path
-    return $ Device dev path
+newDevice path = newDeviceFromFd =<< openFd path ReadOnly Nothing defaultFileFlags
+
+{- | Generalisation of 'newDevice'.
+Note that:
+
+> newDevice path = newDeviceFromFd =<< openFd path ReadOnly Nothing defaultFileFlags
+
+__WARNING__: Don't attempt to reuse the 'Fd' - it will be closed when the 'Device' is garbage collected.
+-}
+newDeviceFromFd :: Fd -> IO Device
+newDeviceFromFd fd = do
+    dev <- cErrCall "newDeviceFromFd" () $ LL.newDeviceFromFd fd
+    pid <- getProcessID
+    path <- readSymbolicLink $ "/proc/" <> show pid <> "/fd/" <> show fd
+    return $ Device{cDevice = dev, devicePath = pack path}
 
 -- | The usual directory containing devices (/"\/dev\/input"/).
 evdevDir :: RawFilePath
