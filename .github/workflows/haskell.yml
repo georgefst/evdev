@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-        
+
     - name: Set user input permissions
       run: |
         sudo usermod -a -G input $USER
@@ -21,13 +21,14 @@ jobs:
         echo KERNEL==\"uinput\", GROUP=\"$USER\", MODE:=\"0660\" | sudo tee /etc/udev/rules.d/99-$USER.rules
         sudo udevadm control --reload-rules
         sudo udevadm trigger
-        
+        sudo modprobe uinput
+
     - name: Check permissions 1
       run: groups $USER
-      
+
     - name: Check permissions 2
       run: ls -l /dev/uinput
-      
+
     - name: Install libevdev
       run: sudo apt install -y libevdev-dev
 
