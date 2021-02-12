@@ -45,10 +45,6 @@ module Evdev (
     LL.CTimeVal(..),
     toCTimeVal,
     fromCTimeVal,
-
-    -- ** Properties
-    LL.getSyspath,
-    LL.getDevnode,
 ) where
 
 import Control.Arrow ((&&&))

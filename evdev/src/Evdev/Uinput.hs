@@ -1,3 +1,4 @@
+-- | Create virtual input devices.
 module Evdev.Uinput (
     Device,
     newDevice,
@@ -6,6 +7,8 @@ module Evdev.Uinput (
     defaultDeviceOpts,
     DeviceOpts (..),
     LL.AbsInfo (..),
+    deviceSyspath,
+    deviceDevnode,
 ) where
 
 import Control.Monad
@@ -126,3 +129,8 @@ writeBatch :: Foldable t => Device -> t EventData -> IO ()
 writeBatch dev es = do
     forM_ es $ writeEvent dev
     writeEvent dev $ SyncEvent SynReport
+
+deviceSyspath :: Device -> IO (Maybe ByteString)
+deviceSyspath = LL.getSyspath . \(Device d) -> d
+deviceDevnode :: Device -> IO (Maybe ByteString)
+deviceDevnode = LL.getDevnode . \(Device d) -> d
