@@ -11,6 +11,8 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    steps:
+
     - name: Set user input permissions
       run: |
         sudo groupadd uinput
@@ -26,7 +28,6 @@ jobs:
     - name: Check permissions 2
       run: ls -l /dev/uinput
 
-    steps:
     - uses: actions/checkout@v2
     # - uses: actions/setup-haskell@v1
     #   with:
