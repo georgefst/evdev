@@ -15,10 +15,9 @@ jobs:
 
     - name: Set user input permissions
       run: |
-        sudo usermod -a -G input $USER
         sudo groupadd uinput
         sudo usermod -a -G uinput $USER
-        echo KERNEL==\"uinput\", GROUP=\"$USER\", MODE:=\"0660\" | sudo tee /etc/udev/rules.d/99-$USER.rules
+        echo 'KERNEL=="uinput", GROUP="uinput", MODE:="0660", OPTIONS+="static_node=uinput"' | sudo tee -a /etc/udev/rules.d/99-uinput.rules > /dev/null
         sudo udevadm control --reload-rules
         sudo udevadm trigger
         sudo modprobe uinput
@@ -28,27 +27,3 @@ jobs:
 
     - name: Check permissions 2
       run: ls -l /dev/uinput
-
-    - name: Install libevdev
-      run: sudo apt install -y libevdev-dev
-
-    - name: Cache
-      uses: actions/cache@v1
-      env:
-        cache-name: cache-cabal
-      with:
-        path: ~/.cabal
-        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.cabal') }}-${{ hashFiles('**/cabal.project') }}
-        restore-keys: |
-          ${{ runner.os }}-build-${{ env.cache-name }}-
-          ${{ runner.os }}-build-
-          ${{ runner.os }}-
-
-    - name: Install dependencies
-      run: |
-        cabal update
-        cabal build --only-dependencies --enable-tests --enable-benchmarks all
-    - name: Build
-      run: cabal build --enable-tests --enable-benchmarks all
-    - name: Run tests
-      run: cabal test all
