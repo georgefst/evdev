@@ -14,7 +14,7 @@ jobs:
     steps:
 
     - name: Set user input permissions
-      run: usermod -a -G input runner
+      run: sudo usermod -a -G input $USER
 
     - uses: actions/checkout@v2
     - uses: actions/setup-haskell@v1
