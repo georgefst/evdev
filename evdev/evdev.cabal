@@ -1,6 +1,6 @@
 cabal-version:       3.0
 name:                evdev
-version:             2.0.0.1
+version:             2.1.0
 author:              George Thomas
 maintainer:          George Thomas
 description:         Provides access to the Linux event device interface.

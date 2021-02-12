@@ -1,5 +1,12 @@
 # Revision history for evdev
 
+## 2.1.0 -- 2021-02-12
+* Add `Evdev.Uinput` module, for creating virtual devices.
+* More functions for querying device properties.
+* Remove some invalid instances for `EventCode` and `EventValue`.
+* Make it possible for user to create a device from a specified file descriptor.
+    * Opens up non-blocking IO, amongst other possibilities.
+
 ## 2.0.0.0 -- 2020-05-30
 * This is really what should have been the `1.0` release, had I had a better understanding of the PVP when starting off.
 * Split Streamly integration into a separate package, `evdev-streamly`.
