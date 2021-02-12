@@ -28,7 +28,7 @@ jobs:
     - name: Check permissions 2
       run: ls -l /dev/uinput
 
-    - uses: actions/checkout@v2
+    # - uses: actions/checkout@v2
     # - uses: actions/setup-haskell@v1
     #   with:
     #     ghc-version: '8.8.2'
@@ -37,8 +37,8 @@ jobs:
     - name: Check permissions 3
       run: ls -l /dev/uinput
 
-    # - name: Install libevdev
-    #   run: sudo apt install -y libevdev-dev
+    - name: Install libevdev
+      run: sudo apt install -y libevdev-dev
 
     # - name: Install dependencies
     #   run: |
