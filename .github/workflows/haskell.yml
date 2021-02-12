@@ -14,37 +14,36 @@ jobs:
     steps:
 
     - name: Set user input permissions
-      run: |
-        sudo groupadd uinput
-        sudo usermod -a -G uinput $USER
-        echo 'KERNEL=="uinput", GROUP="uinput", MODE:="0660", OPTIONS+="static_node=uinput"' | sudo tee -a /etc/udev/rules.d/99-uinput.rules > /dev/null
-        sudo udevadm control --reload-rules
-        sudo udevadm trigger
-        sudo modprobe uinput
+      run: usermod -a -G input runner
 
-    - name: Check permissions 1
-      run: groups $USER
-
-    - name: Check permissions 2
-      run: ls -l /dev/uinput
-
-    # - uses: actions/checkout@v2
-    # - uses: actions/setup-haskell@v1
-    #   with:
-    #     ghc-version: '8.8.2'
-    #     cabal-version: '3.0'
-
-    - name: Check permissions 3
-      run: ls -l /dev/uinput
+    - uses: actions/checkout@v2
+    - uses: actions/setup-haskell@v1
+      with:
+        ghc-version: '8.8.2'
+        cabal-version: '3.0'
 
     - name: Install libevdev
       run: sudo apt install -y libevdev-dev
 
-    # - name: Install dependencies
-    #   run: |
-    #     cabal update
-    #     cabal build --only-dependencies --enable-tests --enable-benchmarks all
-    # - name: Build
-    #   run: cabal build --enable-tests --enable-benchmarks all
-    # - name: Run tests
-    #   run: cabal test all
+    - name: Cache
+      uses: actions/cache@v1
+      env:
+        cache-name: cache-cabal
+      with:
+        path: ~/.cabal
+        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.cabal') }}-${{ hashFiles('**/cabal.project') }}
+        restore-keys: |
+          ${{ runner.os }}-build-${{ env.cache-name }}-
+          ${{ runner.os }}-build-
+          ${{ runner.os }}-
+
+    - name: Install dependencies
+      run: |
+        cabal update
+        cabal build --only-dependencies --enable-tests --enable-benchmarks all
+    - name: Build
+      run: cabal build --enable-tests --enable-benchmarks all
+    - name: Run tests
+      run: |
+        cabal build test
+        find . -name test -type f -executable -exec sudo {} \;
