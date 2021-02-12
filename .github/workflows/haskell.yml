@@ -12,6 +12,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-haskell@v1
+      with:
+        ghc-version: '8.8.2'
+        cabal-version: '3.0'
+
     - name: Set user input permissions
       run: |
         sudo groupadd uinput
@@ -29,18 +35,6 @@ jobs:
 
     - name: Install libevdev
       run: sudo apt install -y libevdev-dev
-
-    - name: Cache
-      uses: actions/cache@v1
-      env:
-        cache-name: cache-cabal
-      with:
-        path: ~/.cabal
-        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.cabal') }}-${{ hashFiles('**/cabal.project') }}
-        restore-keys: |
-          ${{ runner.os }}-build-${{ env.cache-name }}-
-          ${{ runner.os }}-build-
-          ${{ runner.os }}-
 
     - name: Install dependencies
       run: |
