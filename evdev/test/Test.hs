@@ -22,11 +22,6 @@ import Test.Tasty.QuickCheck
 main :: IO ()
 main = defaultMain $ testGroup "Tests" [smoke, inverses]
 
-{-TODO
-doesn't work relably in GHCI
-    if we fail to get a device in any run after the first, we just hang for some reason
--}
-
 {- | Just checks that we can create a virtual device, find it, see that it has the expected properties,
 and read the expected events.
 -}
