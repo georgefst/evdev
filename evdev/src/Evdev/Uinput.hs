@@ -22,6 +22,7 @@ import Evdev.Codes
 import qualified Evdev.LowLevel as LL
 import Util
 
+-- | A `uinput` device.
 newtype Device = Device LL.UDevice
 
 -- | Create a new `uinput` device.
