@@ -11,12 +11,12 @@ jobs:
 
     runs-on: ubuntu-latest
 
-    steps:
+    # steps:
     # - uses: actions/checkout@v2
-    - uses: actions/setup-haskell@v1
-      with:
-        ghc-version: '8.8.2'
-        cabal-version: '3.0'
+    # - uses: actions/setup-haskell@v1
+    #   with:
+    #     ghc-version: '8.8.2'
+    #     cabal-version: '3.0'
 
     - name: Set user input permissions
       run: |
@@ -33,8 +33,8 @@ jobs:
     - name: Check permissions 2
       run: ls -l /dev/uinput
 
-    # - name: Install libevdev
-    #   run: sudo apt install -y libevdev-dev
+    - name: Install libevdev
+      run: sudo apt install -y libevdev-dev
 
     # - name: Install dependencies
     #   run: |
