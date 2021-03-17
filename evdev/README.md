@@ -13,7 +13,7 @@ This package uses `ByteString`s (a.k.a `RawFilePath`s) ubiquitously. You may wan
 
 # Permissions
 
-Your user will need to be a member of the `input` group in order to read from devices. Try `usermod -a -G input [username]`.
+Your user will need to be a member of the `input` group in order to read from devices. Try `usermod -a -G input $USER`.
 
 To create virtual devices (i.e. to use the `Evdev.UInput` module) you will need permission to write to `/dev/uinput`. This can usually be achieved by creating a group specially for uinput permissions:
 ```
