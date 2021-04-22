@@ -42,6 +42,8 @@ smoke = testCase "Smoke" do
             Nothing -> assertFailure "Couldn't find device with correct name"
             Just d -> do
                 putMVar start ()
+                (@?= "") =<< devicePhys d
+                (@?= "") =<< deviceUniq d
                 (@?= [EvSyn, EvKey]) =<< deviceEventTypes d
                 evs' <- whileJust ((\x -> guard (x /= last evs) $> x) . eventData <$> nextEvent d) pure
                 filter (/= SyncEvent SynReport) evs' @?= init evs
