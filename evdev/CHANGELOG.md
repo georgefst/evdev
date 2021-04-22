@@ -1,5 +1,8 @@
 # Revision history for evdev
 
+## unreleased
+* Bug fix: Wrap results of `deviceUniq` and `devicePhys` in `Maybe`, to avoid possibly dereferencing null pointers.
+
 ## 2.1.0 -- 2021-02-12
 * Add `Evdev.Uinput` module, for creating virtual devices.
 * More functions for querying device properties.
