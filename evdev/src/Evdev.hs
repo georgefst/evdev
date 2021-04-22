@@ -224,9 +224,9 @@ deviceName = join . LL.deviceName . cDevice
 
 deviceFd :: Device -> IO Fd
 deviceFd = LL.deviceFd . cDevice
-devicePhys :: Device -> IO ByteString
+devicePhys :: Device -> IO (Maybe ByteString)
 devicePhys = join . LL.devicePhys . cDevice
-deviceUniq :: Device -> IO ByteString
+deviceUniq :: Device -> IO (Maybe ByteString)
 deviceUniq = join . LL.deviceUniq . cDevice
 deviceProduct :: Device -> IO Int
 deviceProduct = LL.deviceProduct . cDevice
