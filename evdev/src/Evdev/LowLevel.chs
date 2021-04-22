@@ -148,8 +148,8 @@ withAbsInfo AbsInfo{..} f = do
 {#fun libevdev_has_event_code as hasEventCode { `Device', `Word16', `Word16' } -> `Bool' #}
 {#fun libevdev_get_fd as deviceFd { `Device' } -> `Fd' Fd #}
 {#fun libevdev_get_name as deviceName { `Device' } -> `IO ByteString' packCString #}
-{#fun libevdev_get_phys as devicePhys { `Device' } -> `IO ByteString' packCString #}
-{#fun libevdev_get_uniq as deviceUniq { `Device' } -> `IO ByteString' packCString #}
+{#fun libevdev_get_phys as devicePhys { `Device' } -> `IO (Maybe ByteString)' packCString' #}
+{#fun libevdev_get_uniq as deviceUniq { `Device' } -> `IO (Maybe ByteString)' packCString' #}
 {#fun libevdev_get_id_product as deviceProduct { `Device' } -> `Int' #}
 {#fun libevdev_get_id_vendor as deviceVendor { `Device' } -> `Int' #}
 {#fun libevdev_get_id_bustype as deviceBustype { `Device' } -> `Int' #}
