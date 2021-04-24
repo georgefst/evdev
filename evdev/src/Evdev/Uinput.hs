@@ -6,11 +6,11 @@ module Evdev.Uinput (
     writeBatch,
     defaultDeviceOpts,
     DeviceOpts (..),
-    LL.AbsInfo (..),
     deviceSyspath,
     deviceDevnode,
 
-    -- * Events
+    -- * Re-exports from 'Evdev'
+    AbsInfo (..),
     Event(..),
     EventData(..),
     KeyEvent(..),

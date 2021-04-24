@@ -20,6 +20,8 @@ module Evdev (
     deviceVendor,
     deviceBustype,
     deviceVersion,
+    deviceAbsAxis,
+    LL.AbsInfo (..),
     -- ** Grabbing
     grabDevice,
     ungrabDevice,
@@ -247,6 +249,9 @@ deviceEventTypes dev = filterM (LL.hasEventType $ cDevice dev) enumerate
 deviceHasEvent :: Device -> EventData -> IO Bool
 deviceHasEvent dev e = LL.hasEventCode (cDevice dev) typ code
   where (typ,code,_val) = toCEventData e
+
+deviceAbsAxis :: Device -> AbsoluteAxis -> IO (Maybe LL.AbsInfo)
+deviceAbsAxis dev = LL.getAbsInfo (cDevice dev) . fromEnum'
 
 
 {- Util -}
