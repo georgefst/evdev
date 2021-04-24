@@ -9,6 +9,13 @@ module Evdev.Uinput (
     LL.AbsInfo (..),
     deviceSyspath,
     deviceDevnode,
+
+    -- * Events
+    Event(..),
+    EventData(..),
+    KeyEvent(..),
+    EventCode(..),
+    EventValue(..),
 ) where
 
 import Control.Monad
