@@ -4,7 +4,7 @@ import Control.Monad (join)
 import Data.ByteString (ByteString,packCString,useAsCString)
 import Data.Coerce (coerce)
 import Data.Int (Int32,Int64)
-import Data.Word (Word16)
+import Data.Word (Word16, Word32)
 import Foreign (Ptr,allocaBytes,mallocBytes,mallocForeignPtrBytes,newForeignPtr_,nullPtr,peek,withForeignPtr)
 import Foreign.C (CInt(..),CLong(..),CUInt(..),CUShort(..),CString)
 import Foreign.C.Error (Errno(Errno), eOK, eAGAIN)
@@ -128,6 +128,7 @@ data AbsInfo = AbsInfo
     , absFlat :: Int32
     , absResolution :: Int32
     }
+    deriving (Show)
 withAbsInfo :: AbsInfo -> (Ptr () -> IO a) -> IO a
 withAbsInfo AbsInfo{..} f = do
     p <- mallocBytes {#sizeof input_absinfo#}
@@ -139,6 +140,20 @@ withAbsInfo AbsInfo{..} f = do
     {#set input_absinfo.resolution#} p $ CInt absResolution
     pf <- newForeignPtr_ p
     withForeignPtr pf f
+
+--TODO can c2hs make this simpler at all?
+foreign import ccall safe "Evdev/LowLevel.chs.h libevdev_get_abs_info"
+  libevdev_get_abs_info :: Ptr Device -> CUInt -> IO (Ptr ())
+getAbsInfo :: Device -> Word32 -> IO (Maybe AbsInfo)
+getAbsInfo dev x = withDevice dev \devPtr ->
+    libevdev_get_abs_info devPtr (CUInt x) >>= handleNull (pure Nothing) \absinfoPtr -> do
+        CInt absValue <- {#get input_absinfo.value#} absinfoPtr
+        CInt absMinimum <- {#get input_absinfo.minimum#} absinfoPtr
+        CInt absMaximum <- {#get input_absinfo.maximum#} absinfoPtr
+        CInt absFuzz <- {#get input_absinfo.fuzz#} absinfoPtr
+        CInt absFlat <- {#get input_absinfo.flat#} absinfoPtr
+        CInt absResolution <- {#get input_absinfo.resolution#} absinfoPtr
+        pure $ Just AbsInfo{..}
 
 
 {- Simpler functions -}
