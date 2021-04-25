@@ -145,15 +145,15 @@ withAbsInfo AbsInfo{..} f = do
 foreign import ccall safe "Evdev/LowLevel.chs.h libevdev_get_abs_info"
   libevdev_get_abs_info :: Ptr Device -> CUInt -> IO (Ptr ())
 getAbsInfo :: Device -> Word32 -> IO (Maybe AbsInfo)
-getAbsInfo dev x = withDevice dev $ handleNull (pure Nothing) \devPtr -> do
-    (absinfoPtr :: Ptr ()) <- libevdev_get_abs_info devPtr $ CUInt x
-    CInt absValue <- {#get input_absinfo.value#} absinfoPtr
-    CInt absMinimum <- {#get input_absinfo.minimum#} absinfoPtr
-    CInt absMaximum <- {#get input_absinfo.maximum#} absinfoPtr
-    CInt absFuzz <- {#get input_absinfo.fuzz#} absinfoPtr
-    CInt absFlat <- {#get input_absinfo.flat#} absinfoPtr
-    CInt absResolution <- {#get input_absinfo.resolution#} absinfoPtr
-    pure $ Just AbsInfo{..}
+getAbsInfo dev x = withDevice dev \devPtr ->
+    libevdev_get_abs_info devPtr (CUInt x) >>= handleNull (pure Nothing) \absinfoPtr -> do
+        CInt absValue <- {#get input_absinfo.value#} absinfoPtr
+        CInt absMinimum <- {#get input_absinfo.minimum#} absinfoPtr
+        CInt absMaximum <- {#get input_absinfo.maximum#} absinfoPtr
+        CInt absFuzz <- {#get input_absinfo.fuzz#} absinfoPtr
+        CInt absFlat <- {#get input_absinfo.flat#} absinfoPtr
+        CInt absResolution <- {#get input_absinfo.resolution#} absinfoPtr
+        pure $ Just AbsInfo{..}
 
 
 {- Simpler functions -}
