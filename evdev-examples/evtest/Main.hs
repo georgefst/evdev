@@ -11,6 +11,7 @@ import Evdev.Stream
 
 main :: IO ()
 main = getArgs >>= \case
+    ["all"] -> S.mapM_ pPrint $ readEventsMany allDevices
     ["new",t] -> do
         let printNewDevice d = do
                 BS.putStrLn ""
