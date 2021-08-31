@@ -2,7 +2,6 @@ module Main (main) where
 
 import Control.Monad
 
-import Evdev (EventData (..), KeyEvent (..))
 import qualified Evdev.Codes as Codes
 import Evdev.Uinput
 
