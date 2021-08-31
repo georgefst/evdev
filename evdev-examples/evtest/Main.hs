@@ -10,23 +10,23 @@ import Evdev
 import Evdev.Stream
 
 main :: IO ()
-main = getArgs >>= \case
-    ["all"] -> S.mapM_ pPrint $ readEventsMany allDevices
-    ["new",t] -> do
-        let printNewDevice d = do
+main = do
+    devs <- getArgs >>= \case
+        ["all"] -> pure allDevices
+        ["new", t] -> pure $ S.mapM (\d -> printNewDevice d >> pure d) $ newDevices' $ read t
+          where
+            printNewDevice d = do
                 BS.putStrLn ""
                 BS.putStrLn "New device:"
                 BS.putStrLn $ devicePath d
                 BS.putStrLn =<< deviceName d
                 BS.putStrLn ""
-                return d
-        S.mapM_ pPrint $ readEventsMany $ S.mapM printNewDevice $ newDevices' $ read t
-    _ -> do
-        S.mapM_ printDevice allDevices
-        BS.putStr "Choose device numbers (separated by whitespace): "
-        ns <- BS.words <$> BS.getLine
-        let paths = S.fromFoldable $ map ((evdevDir <> "/event") <>) ns
-        S.mapM_ pPrint $ readEventsMany $ makeDevices paths
+        _ -> do
+            S.mapM_ printDevice allDevices
+            BS.putStr "Choose device numbers (separated by whitespace): "
+            ns <- BS.words <$> BS.getLine
+            pure $ makeDevices $ S.fromFoldable $ map ((evdevDir <> "/event") <>) ns
+    S.mapM_ pPrint $ readEventsMany devs
 
 printDevice :: Device -> IO ()
 printDevice dev = do
