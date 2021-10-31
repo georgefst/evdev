@@ -11,11 +11,9 @@ import Evdev.Stream
 -- | Run a command on any occurrence of the given key, across all devices.
 main :: IO ()
 main = getArgs >>= \case
-    key : p : ps ->
+    (read -> key) : p : ps ->
         flip S.mapM_ (snd <$> readEventsMany allDevices) \case
-            Event{eventData = KeyEvent k' Pressed} | k' == k ->
+            Event{eventData = KeyEvent k Pressed} | k == key ->
                 putStrLn =<< readProcess p ps ""
             _ -> pure ()
-      where
-        k = read key
     _ -> error "bad args - try \"trigger Key1 wmctrl -s 1\""
