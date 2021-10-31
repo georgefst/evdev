@@ -51,6 +51,7 @@ executable trigger
         -Wall
     default-language: Haskell2010
     default-extensions:
+        BangPatterns
         BlockArguments
         LambdaCase
         ViewPatterns
