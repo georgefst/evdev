@@ -25,7 +25,7 @@ import qualified Streamly.FSNotify as N
 import Streamly.FSNotify (FSEntryType(NotDir),watchDirectory)
 import System.Posix.FilePath ((</>))
 
-import Streamly
+import Streamly.Prelude (AsyncT, IsStream, MonadAsync, SerialT)
 import qualified Streamly.Prelude as S
 
 import Evdev
@@ -39,9 +39,9 @@ readEvents = S.repeatM . nextEvent
 -- | Concurrently read events from multiple devices.
 -- If a read fails on one, the exception is printed to stderr and the stream continues to read from the others.
 readEventsMany :: IsStream t => AsyncT IO Device -> t IO (Device, Event)
-readEventsMany ds = asyncly $ do
+readEventsMany ds = S.fromAsync $ do
     d <- ds
-    S.map (d,) $ serially $ readEvents' d
+    S.map (d,) $ S.fromSerial $ readEvents' d
     where
         -- catch all IO errors
         readEvents' = unfoldM . printIOError' . nextEvent
@@ -64,7 +64,7 @@ allEvents = readEventsMany allDevices
 -- and the function continues to try to initialise the others.
 allDevices :: (IsStream t, Monad (t IO)) => t IO Device
 allDevices =
-    let paths = S.filterM doesFileExist $ S.map (evdevDir </>) $ S.fromFoldable =<< S.yieldM (listDirectory evdevDir)
+    let paths = S.filterM doesFileExist $ S.map (evdevDir </>) $ S.fromFoldable =<< S.fromEffect (listDirectory evdevDir)
     in  S.mapMaybeM (printIOError' . newDevice) paths
 
 --TODO perhaps streamly-fsnotify ought to use RawFilePath?
@@ -98,7 +98,7 @@ newDevices =
             _ -> return (Nothing, watching)
         tryNewDevice = printIOError . newDevice
     in do
-        (_,es) <- S.yieldM $ watchDirectory (BS.unpack evdevDir) N.everything
+        (_,es) <- S.fromEffect $ watchDirectory (BS.unpack evdevDir) N.everything
         scanMaybe watch Set.empty es
 
 --TODO just fix 'newDevices'
@@ -113,7 +113,7 @@ newDevices' delay =
             _ -> return Nothing
         tryNewDevice = printIOError . newDevice
     in do
-        (_,es) <- S.yieldM $ watchDirectory (BS.unpack evdevDir) N.everything
+        (_,es) <- S.fromEffect $ watchDirectory (BS.unpack evdevDir) N.everything
         S.mapMaybeM f es
 
 
