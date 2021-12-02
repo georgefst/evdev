@@ -124,7 +124,7 @@ newDevices' delay =
 -- I really can't think of a good name for this...
 -- TODO perhaps some way to use State monad instead?
 scanMaybe :: (IsStream t, Monad m) => (s -> a -> m (Maybe b, s)) -> s -> t m a -> t m b
-scanMaybe f e  = S.mapMaybe fst . S.scanlM' (f . snd) (Nothing, e)
+scanMaybe f e  = S.mapMaybe fst . S.scanlM' (f . snd) (pure (Nothing, e))
 
 -- specialised form of S.unfoldrM
 -- this should perhaps be in streamly (it's in monad-loops)
