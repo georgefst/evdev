@@ -8,3 +8,9 @@ source-repository-package
     type: git
     location: gh:georgefst/rawfilepath
     tag: f609f22e82de36e0e62a9fc6b1368b50614bf3d1
+
+--TODO https://github.com/cdepillabout/pretty-simple/issues/82#issuecomment-921094150
+source-repository-package
+    type: git
+    location: https://github.com/georgefst/pretty-simple
+    tag: 33c26718312572746792969c8502fde46e47fa9b
