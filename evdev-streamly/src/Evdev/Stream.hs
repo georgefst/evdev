@@ -23,7 +23,7 @@ import qualified Data.ByteString.Char8 as BS
 import RawFilePath.Directory (RawFilePath,doesFileExist,listDirectory)
 import qualified Streamly.FSNotify as N
 import Streamly.FSNotify (FSEntryType(NotDir),watchDirectory)
-import System.Posix.FilePath ((</>))
+import System.FilePath.ByteString ((</>))
 
 import Streamly.Prelude (AsyncT, IsStream, MonadAsync, SerialT)
 import qualified Streamly.Prelude as S
