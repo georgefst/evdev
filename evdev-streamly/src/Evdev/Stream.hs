@@ -64,7 +64,8 @@ allEvents = readEventsMany allDevices
 -- and the function continues to try to initialise the others.
 allDevices :: (IsStream t, Monad (t IO)) => t IO Device
 allDevices =
-    let paths = S.filterM doesFileExist $ S.map (evdevDir </>) $ S.fromFoldable =<< S.fromEffect (listDirectory evdevDir)
+    let paths = S.filterM doesFileExist $ S.map (evdevDir </>) $ S.fromFoldable
+            =<< S.fromEffect (reverse <$> listDirectory evdevDir)
     in  S.mapMaybeM (printIOError' . newDevice) paths
 
 --TODO perhaps streamly-fsnotify ought to use RawFilePath?
