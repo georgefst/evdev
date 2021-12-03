@@ -9,6 +9,7 @@ import qualified Streamly.Prelude as S
 import Evdev
 import Evdev.Stream
 
+--TODO display usage example in CLI
 main :: IO ()
 main = do
     devs <- getArgs >>= \case

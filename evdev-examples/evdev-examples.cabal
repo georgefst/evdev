@@ -23,7 +23,7 @@ executable evtest
         LambdaCase
         OverloadedStrings
 
-executable uinput
+executable uinput-echo
     main-is: Main.hs
     hs-source-dirs: uinput
     build-depends:
@@ -35,9 +35,11 @@ executable uinput
         -Wall
     default-language: Haskell2010
     default-extensions:
+        BlockArguments
+        LambdaCase
         OverloadedStrings
 
-executable trigger
+executable evdev-trigger
     main-is: Main.hs
     hs-source-dirs: trigger
     build-depends:

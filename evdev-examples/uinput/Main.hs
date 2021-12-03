@@ -7,16 +7,50 @@ import Evdev.Uinput
 
 main :: IO ()
 main = do
-    dev <- newDevice "haskell-test" defaultDeviceOpts{keys = keys'}
-    forever $ do
-        _ <- getChar
-        writeBatch dev events
+    dev <-
+        newDevice
+            "haskell-uinput-echo-example"
+            defaultDeviceOpts{keys = [Codes.KeyA .. Codes.KeyZ] ++ [Codes.Key1 .. Codes.Key0]}
+    forever do
+        cs <- getLine
+        writeBatch dev [KeyEvent k a | Just k <- map charToEvent cs, a <- [Pressed, Released]]
 
-events :: [EventData]
-events = concat [[KeyEvent k a | a <- [Pressed, Released]] | k <- keys']
-
-keys' :: [Codes.Key]
-keys' =
-    [ Codes.KeyLeftctrl
-    , Codes.KeyLeftshift
-    ]
+charToEvent :: Char -> Maybe Codes.Key
+charToEvent = \case
+    '0' -> Just Codes.Key0
+    '1' -> Just Codes.Key1
+    '2' -> Just Codes.Key2
+    '3' -> Just Codes.Key3
+    '4' -> Just Codes.Key4
+    '5' -> Just Codes.Key5
+    '6' -> Just Codes.Key6
+    '7' -> Just Codes.Key7
+    '8' -> Just Codes.Key8
+    '9' -> Just Codes.Key9
+    'a' -> Just Codes.KeyA
+    'b' -> Just Codes.KeyB
+    'c' -> Just Codes.KeyC
+    'd' -> Just Codes.KeyD
+    'e' -> Just Codes.KeyE
+    'f' -> Just Codes.KeyF
+    'g' -> Just Codes.KeyG
+    'h' -> Just Codes.KeyH
+    'i' -> Just Codes.KeyI
+    'j' -> Just Codes.KeyJ
+    'k' -> Just Codes.KeyK
+    'l' -> Just Codes.KeyL
+    'm' -> Just Codes.KeyM
+    'n' -> Just Codes.KeyN
+    'o' -> Just Codes.KeyO
+    'p' -> Just Codes.KeyP
+    'q' -> Just Codes.KeyQ
+    'r' -> Just Codes.KeyR
+    's' -> Just Codes.KeyS
+    't' -> Just Codes.KeyT
+    'u' -> Just Codes.KeyU
+    'v' -> Just Codes.KeyV
+    'w' -> Just Codes.KeyW
+    'x' -> Just Codes.KeyX
+    'y' -> Just Codes.KeyY
+    'z' -> Just Codes.KeyZ
+    _ -> Nothing

@@ -14,6 +14,6 @@ main = getArgs >>= \case
     (read -> !key) : p : ps ->
         flip S.mapM_ (snd <$> readEventsMany allDevices) \case
             Event{eventData = KeyEvent k Pressed} | k == key ->
-                putStrLn =<< readProcess p ps ""
+                putStr =<< readProcess p ps ""
             _ -> pure ()
-    _ -> error "bad args - try \"trigger Key1 wmctrl -s 1\""
+    _ -> error "bad args - try \"evdev-trigger Key1 echo keypress\""
