@@ -17,7 +17,7 @@ jobs:
       run: sudo usermod -a -G input $USER
 
     - uses: actions/checkout@v2
-    - uses: actions/setup-haskell@v1
+    - uses: haskell/actions/setup@v1
       with:
         ghc-version: '8.8.2'
         cabal-version: '3.0'
