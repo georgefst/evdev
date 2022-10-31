@@ -177,6 +177,12 @@ getAbsInfo dev x = withDevice dev \devPtr ->
 {#fun libevdev_enable_event_code as enableCode { `Device', `Word16', `Word16', `Ptr ()' } -> `Errno' Errno #}
 {#fun libevdev_uinput_write_event as writeEvent { `UDevice', `Word16', `Word16', `Int32' } -> `Errno' Errno #}
 
+-- | LEDs values
+{#enum define LEDValue {
+    LIBEVDEV_LED_ON as LedOn,
+    LIBEVDEV_LED_OFF as LedOff}
+    deriving (Bounded, Eq, Ord, Read, Show) #}
+{#fun libevdev_kernel_set_led_value { `Device', convertEnum `LEDEvent', `LEDValue' } -> `Errno' Errno #}
 
 {- Util -}
 

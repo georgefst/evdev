@@ -36,6 +36,8 @@ module Evdev (
     -- * Lower-level
     newDeviceFromFd,
     nextEventMay,
+    LL.LEDValue(..),
+    setDeviceLED,
     -- ** C-style types
     -- | These correspond more directly to C's /input_event/ and /timeval/.
     -- They are used internally, but may be useful for advanced users.
@@ -253,6 +255,9 @@ deviceHasEvent dev e = LL.hasEventCode (cDevice dev) typ code
 deviceAbsAxis :: Device -> AbsoluteAxis -> IO (Maybe LL.AbsInfo)
 deviceAbsAxis dev = LL.getAbsInfo (cDevice dev) . fromEnum'
 
+-- | Set the state of a LED on a device.
+setDeviceLED :: Device -> LEDEvent -> LL.LEDValue -> IO ()
+setDeviceLED dev led val = cErrCall "setDeviceLED" dev (LL.libevdev_kernel_set_led_value (cDevice dev) led val)
 
 {- Util -}
 
