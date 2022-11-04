@@ -592,7 +592,10 @@ module Evdev.Codes where
     REL_HWHEEL as RelHwheel,
     REL_DIAL as RelDial,
     REL_WHEEL as RelWheel,
-    REL_MISC as RelMisc}
+    REL_MISC as RelMisc,
+    REL_RESERVED as RelReserved,
+    REL_WHEEL_HI_RES as RelWheelHiRes,
+    REL_HWHEEL_HI_RES as RelHWheelHiRes}
     deriving (Bounded, Eq, Ord, Read, Show) #}
 
 -- | Absolute changes
