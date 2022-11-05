@@ -201,11 +201,14 @@ toCTimeVal :: DiffTime -> LL.CTimeVal
 toCTimeVal t = LL.CTimeVal n (round $ f * 1_000_000)
     where (n,f) = properFraction t
 
--- | Create a device from a valid path - usually /\/dev\/input\/eventX/ for some /X/.
+{- | Create a device from a valid path - usually /\/dev\/input\/eventX/ for some numeric /X/.
+Use 'newDeviceFromFd' if you need more control over how the device is created.
+-}
 newDevice :: RawFilePath -> IO Device
 newDevice path = newDeviceFromFd =<< openFd path ReadOnly Nothing defaultFileFlags
 
-{- | Generalisation of 'newDevice'.
+{- | Generalisation of 'newDevice', in case one needs control over the file descriptor,
+e.g. in order to set a particular 'System.Posix.FileMode', 'System.Posix.OpenMode', or 'System.Posix.OpenFileFlags'.
 Note that:
 
 > newDevice path = newDeviceFromFd =<< openFd path ReadOnly Nothing defaultFileFlags
