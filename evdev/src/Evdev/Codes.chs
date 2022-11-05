@@ -582,6 +582,7 @@ module Evdev.Codes where
     deriving (Bounded, Eq, Ord, Read, Show) #}
 
 -- | Relative changes
+#if defined(REL_WHEEL_HI_RES)
 {#enum define RelativeAxis {
     REL_X as RelX,
     REL_Y as RelY,
@@ -597,6 +598,21 @@ module Evdev.Codes where
     REL_WHEEL_HI_RES as RelWheelHiRes,
     REL_HWHEEL_HI_RES as RelHWheelHiRes}
     deriving (Bounded, Eq, Ord, Read, Show) #}
+# else
+{#enum define RelativeAxis {
+    REL_X as RelX,
+    REL_Y as RelY,
+    REL_Z as RelZ,
+    REL_RX as RelRx,
+    REL_RY as RelRy,
+    REL_RZ as RelRz,
+    REL_HWHEEL as RelHwheel,
+    REL_DIAL as RelDial,
+    REL_WHEEL as RelWheel,
+    REL_MISC as RelMisc,
+    REL_RESERVED as RelReserved}
+    deriving (Bounded, Eq, Ord, Read, Show) #}
+#endif
 
 -- | Absolute changes
 {#enum define AbsoluteAxis {
