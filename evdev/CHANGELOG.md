@@ -1,7 +1,13 @@
 # Revision history for evdev
 
-## unreleased
-* Bug fix: Wrap results of `deviceUniq` and `devicePhys` in `Maybe`, to avoid possibly dereferencing null pointers.
+## 2.2.0 -- 05-11-2022
+* More bindings:
+    * `deviceAbsAxis`
+    * `REL_WHEEL_HI_RES` and `REL_HWHEEL_HI_RES`
+    * `setDeviceLED`
+* Open devices with write permissions by default. This is primarily in order to make `setDeviceLED` easier to use.
+* Export event types from `Uinput` module. This means that that module can actually reasonably be used without also importing `Evdev` and selectively hiding things.
+* Wrap results of `deviceUniq` and `devicePhys` in `Maybe`, to avoid possibly dereferencing null pointers.
 
 ## 2.1.0 -- 2021-02-12
 * Add `Evdev.Uinput` module, for creating virtual devices.
