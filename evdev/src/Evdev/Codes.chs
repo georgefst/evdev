@@ -1,3 +1,5 @@
+{-# LANGUAGE PatternSynonyms #-}
+
 {-
 TODO haddock doesn't quite work correctly with LINE pragmas
     https://github.com/haskell/haddock/issues/441
@@ -9,7 +11,37 @@ seems to be on its way to being fixed with `.hie` files (enable `-fwrite-ide-inf
 
 -- | Datatypes corresponding to the constants in [input-event-codes.h](https://github.com/torvalds/linux/blob/master/include/uapi/linux/input-event-codes.h).
 -- See [the Linux Kernel documentation](https://www.kernel.org/doc/html/latest/input/event-codes.html) for full details, noting that all names have been mechanically transformed into CamelCase.
-module Evdev.Codes where
+module Evdev.Codes 
+    ( EventType(..)
+    , SyncEvent(..)
+    , Key
+        ( ..
+        , KeyHanguel
+        , KeyCoffee
+        , KeyDirection
+        , KeyBrightnessZero
+        , KeyWimax
+        , BtnMisc
+        , BtnMouse
+        , BtnTrigger
+        , BtnGamepad
+        , BtnSouth
+        , BtnEast
+        , BtnNorth
+        , BtnWest
+        , BtnDigi
+        , BtnWheel
+        , KeyBrightnessToggle
+        , BtnTriggerHappy )
+    , RelativeAxis(..)
+    , AbsoluteAxis(..)
+    , SwitchEvent(..)
+    , MiscEvent(..)
+    , LEDEvent(..)
+    , RepeatEvent(..)
+    , SoundEvent(..)
+    , DeviceProperty(..)
+    ) where
 
 #include <linux/input-event-codes.h>
 
@@ -161,7 +193,7 @@ module Evdev.Codes where
     KEY_SCALE as KeyScale,
     KEY_KPCOMMA as KeyKpcomma,
     KEY_HANGEUL as KeyHangeul,
-    KEY_HANGUEL as KeyHanguel,
+    -- KEY_HANGUEL as KeyHanguel, (alias of KEY_HANGEUL)
     KEY_HANJA as KeyHanja,
     KEY_YEN as KeyYen,
     KEY_LEFTMETA as KeyLeftmeta,
@@ -191,10 +223,10 @@ module Evdev.Codes where
     KEY_PROG2 as KeyProg2,
     KEY_WWW as KeyWww,
     KEY_MSDOS as KeyMsdos,
-    KEY_COFFEE as KeyCoffee,
+    -- KEY_COFFEE as KeyCoffee, (alias of KEY_SCREENLOCK)
     KEY_SCREENLOCK as KeyScreenlock,
     KEY_ROTATE_DISPLAY as KeyRotateDisplay,
-    KEY_DIRECTION as KeyDirection,
+    -- KEY_DIRECTION as KeyDirection, (alias of KEY_ROTATE_DISPLAY)
     KEY_CYCLEWINDOWS as KeyCyclewindows,
     KEY_MAIL as KeyMail,
     KEY_BOOKMARKS as KeyBookmarks,
@@ -281,13 +313,13 @@ module Evdev.Codes where
     KEY_VIDEO_PREV as KeyVideoPrev,
     KEY_BRIGHTNESS_CYCLE as KeyBrightnessCycle,
     KEY_BRIGHTNESS_AUTO as KeyBrightnessAuto,
-    KEY_BRIGHTNESS_ZERO as KeyBrightnessZero,
+    -- KEY_BRIGHTNESS_ZERO as KeyBrightnessZero, (alias of KEY_BRIGHTNESS_AUTO)
     KEY_DISPLAY_OFF as KeyDisplayOff,
     KEY_WWAN as KeyWwan,
-    KEY_WIMAX as KeyWimax,
+    -- KEY_WIMAX as KeyWimax, (alias of KEY_WWAN)
     KEY_RFKILL as KeyRfkill,
     KEY_MICMUTE as KeyMicmute,
-    BTN_MISC as BtnMisc,
+    -- BTN_MISC as BtnMisc, (alias of BTN_0)
     BTN_0 as Btn0,
     BTN_1 as Btn1,
     BTN_2 as Btn2,
@@ -298,7 +330,7 @@ module Evdev.Codes where
     BTN_7 as Btn7,
     BTN_8 as Btn8,
     BTN_9 as Btn9,
-    BTN_MOUSE as BtnMouse,
+    -- BTN_MOUSE as BtnMouse, (alias of BTN_LEFT)
     BTN_LEFT as BtnLeft,
     BTN_RIGHT as BtnRight,
     BTN_MIDDLE as BtnMiddle,
@@ -308,7 +340,7 @@ module Evdev.Codes where
     BTN_BACK as BtnBack,
     BTN_TASK as BtnTask,
     BTN_JOYSTICK as BtnJoystick,
-    BTN_TRIGGER as BtnTrigger,
+    -- BTN_TRIGGER as BtnTrigger, (alias of BTN_JOYSTICK)
     BTN_THUMB as BtnThumb,
     BTN_THUMB2 as BtnThumb2,
     BTN_TOP as BtnTop,
@@ -321,15 +353,15 @@ module Evdev.Codes where
     BTN_BASE5 as BtnBase5,
     BTN_BASE6 as BtnBase6,
     BTN_DEAD as BtnDead,
-    BTN_GAMEPAD as BtnGamepad,
-    BTN_SOUTH as BtnSouth,
+    -- BTN_GAMEPAD as BtnGamepad, (alias of BTN_A)
+    -- BTN_SOUTH as BtnSouth, (alias of BTN_A)
     BTN_A as BtnA,
-    BTN_EAST as BtnEast,
+    -- BTN_EAST as BtnEast, (alias of BTN_B)
     BTN_B as BtnB,
     BTN_C as BtnC,
-    BTN_NORTH as BtnNorth,
+    -- BTN_NORTH as BtnNorth, (alias of BTN_X)
     BTN_X as BtnX,
-    BTN_WEST as BtnWest,
+    -- BTN_WEST as BtnWest, (alias of BTN_Y)
     BTN_Y as BtnY,
     BTN_Z as BtnZ,
     BTN_TL as BtnTl,
@@ -341,7 +373,7 @@ module Evdev.Codes where
     BTN_MODE as BtnMode,
     BTN_THUMBL as BtnThumbl,
     BTN_THUMBR as BtnThumbr,
-    BTN_DIGI as BtnDigi,
+    -- BTN_DIGI as BtnDigi, (alias of BTN_TOOL_PEN)
     BTN_TOOL_PEN as BtnToolPen,
     BTN_TOOL_RUBBER as BtnToolRubber,
     BTN_TOOL_BRUSH as BtnToolBrush,
@@ -357,7 +389,7 @@ module Evdev.Codes where
     BTN_TOOL_DOUBLETAP as BtnToolDoubletap,
     BTN_TOOL_TRIPLETAP as BtnToolTripletap,
     BTN_TOOL_QUADTAP as BtnToolQuadtap,
-    BTN_WHEEL as BtnWheel,
+    -- BTN_WHEEL as BtnWheel, (alias of BTN_GEAR_DOWN)
     BTN_GEAR_DOWN as BtnGearDown,
     BTN_GEAR_UP as BtnGearUp,
     KEY_OK as KeyOk,
@@ -440,7 +472,7 @@ module Evdev.Codes where
     KEY_ADDRESSBOOK as KeyAddressbook,
     KEY_MESSENGER as KeyMessenger,
     KEY_DISPLAYTOGGLE as KeyDisplaytoggle,
-    KEY_BRIGHTNESS_TOGGLE as KeyBrightnessToggle,
+    -- KEY_BRIGHTNESS_TOGGLE as KeyBrightnessToggle, (alias of KEY_DISPLAYTOGGLE)
     KEY_SPELLCHECK as KeySpellcheck,
     KEY_LOGOFF as KeyLogoff,
     KEY_DOLLAR as KeyDollar,
@@ -538,7 +570,7 @@ module Evdev.Codes where
     KEY_KBDINPUTASSIST_NEXTGROUP as KeyKbdinputassistNextgroup,
     KEY_KBDINPUTASSIST_ACCEPT as KeyKbdinputassistAccept,
     KEY_KBDINPUTASSIST_CANCEL as KeyKbdinputassistCancel,
-    BTN_TRIGGER_HAPPY as BtnTriggerHappy,
+    -- BTN_TRIGGER_HAPPY as BtnTriggerHappy, (alias of BTN_TRIGGER_HAPPY1)
     BTN_TRIGGER_HAPPY1 as BtnTriggerHappy1,
     BTN_TRIGGER_HAPPY2 as BtnTriggerHappy2,
     BTN_TRIGGER_HAPPY3 as BtnTriggerHappy3,
@@ -580,6 +612,57 @@ module Evdev.Codes where
     BTN_TRIGGER_HAPPY39 as BtnTriggerHappy39,
     BTN_TRIGGER_HAPPY40 as BtnTriggerHappy40}
     deriving (Bounded, Eq, Ord, Read, Show) #}
+
+pattern KeyHanguel :: Key
+pattern KeyHanguel = KeyHangeul
+
+pattern KeyCoffee :: Key
+pattern KeyCoffee = KeyScreenlock
+
+pattern KeyDirection :: Key
+pattern KeyDirection = KeyRotateDisplay
+
+pattern KeyBrightnessZero :: Key
+pattern KeyBrightnessZero = KeyBrightnessAuto
+
+pattern KeyWimax :: Key
+pattern KeyWimax = KeyWwan
+
+pattern BtnMisc :: Key
+pattern BtnMisc = Btn0
+
+pattern BtnMouse :: Key
+pattern BtnMouse = BtnLeft
+
+pattern BtnTrigger :: Key
+pattern BtnTrigger = BtnJoystick
+
+pattern BtnGamepad :: Key
+pattern BtnGamepad = BtnA
+
+pattern BtnSouth :: Key
+pattern BtnSouth = BtnA
+
+pattern BtnEast :: Key
+pattern BtnEast = BtnB
+
+pattern BtnNorth :: Key
+pattern BtnNorth = BtnX
+
+pattern BtnWest :: Key
+pattern BtnWest = BtnY
+
+pattern BtnDigi :: Key
+pattern BtnDigi = BtnToolPen
+
+pattern BtnWheel :: Key
+pattern BtnWheel = BtnGearDown
+
+pattern KeyBrightnessToggle :: Key
+pattern KeyBrightnessToggle = KeyDisplaytoggle
+
+pattern BtnTriggerHappy :: Key
+pattern BtnTriggerHappy = BtnTriggerHappy1
 
 -- | Relative changes
 #if defined(REL_WHEEL_HI_RES)
