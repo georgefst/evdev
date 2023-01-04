@@ -19,7 +19,6 @@ To create virtual devices (i.e. to use the `Evdev.UInput` module) you will need 
 ```
 sudo groupadd uinput
 sudo usermod -a -G uinput $USER
-echo 'KERNEL=="uinput", GROUP="uinput", MODE:="0660", OPTIONS+="static_node=uinput"' | sudo tee -a /etc/udev/rules
+echo 'KERNEL=="uinput", GROUP="uinput", MODE:="0660", OPTIONS+="static_node=uinput"' | sudo tee -a /etc/udev/rules.d/99-uinput.rules > /dev/null
 ```
-Log out and back in for this to take effect.
-<!--TODO mention udevadm,modprobe, as in #14 -->
+Log out and back in for this to take effect (or try `sudo udevadm control --reload-rules && sudo udevadm trigger`).
