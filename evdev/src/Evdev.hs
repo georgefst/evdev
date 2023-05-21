@@ -90,7 +90,7 @@ data Event = Event
     { eventData :: EventData
     , eventTime :: DiffTime
     }
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Read)
 
 -- | An input event, without the timestamp.
 -- Each constructor corresponds to one [event type](https://www.kernel.org/doc/html/latest/input/event-codes.html#event-types), except for 'UnknownEvent'.
@@ -110,14 +110,14 @@ data EventData
     | UnknownEvent Word16 EventCode EventValue {- ^ We include this primarily so that 'fromCEvent' can be well-defined -
         let us know if you ever actually see one emitted by a device, as it would likely
         indicate a shortcoming in the library. -}
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Read)
 
 -- | A direct representation of the /code/ field of the C /input_event/, for when there is no obvious meaningful sum type.
 newtype EventCode = EventCode Word16
-    deriving (Eq, Ord, Show, Enum)
+    deriving (Eq, Ord, Show, Read, Enum)
 -- | A direct representation of the /value/ field of the C /input_event/, for when there is no obvious meaningful sum type.
 newtype EventValue = EventValue Int32
-    deriving (Eq, Ord, Show, Enum)
+    deriving (Eq, Ord, Show, Read, Enum)
 
 -- | The status of a key.
 data KeyEvent
