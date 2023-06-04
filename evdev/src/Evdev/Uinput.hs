@@ -43,7 +43,7 @@ newDevice name DeviceOpts{..} = do
     LL.setDeviceName dev name
 
     let maybeSet :: (LL.Device -> a -> IO ()) -> Maybe a -> IO ()
-        maybeSet setter x = maybe (pure ()) (setter dev) x
+        maybeSet = maybe mempty . ($ dev)
     maybeSet LL.setDevicePhys phys
     maybeSet LL.setDeviceUniq uniq
     maybeSet LL.libevdev_set_id_product idProduct
