@@ -4,8 +4,9 @@ module Evdev.Uinput (
     newDevice,
     writeEvent,
     writeBatch,
-    defaultDeviceOpts,
     DeviceOpts (..),
+    defaultDeviceOpts,
+    deviceOptsFromEvents,
     deviceSyspath,
     deviceDevnode,
 
@@ -19,6 +20,8 @@ module Evdev.Uinput (
 ) where
 
 import Control.Monad
+import Control.Monad.State
+import Data.Foldable
 import Data.Tuple.Extra
 import Foreign
 
@@ -142,3 +145,47 @@ deviceSyspath :: Device -> IO (Maybe ByteString)
 deviceSyspath = LL.getSyspath . \(Device d) -> d
 deviceDevnode :: Device -> IO (Maybe ByteString)
 deviceDevnode = LL.getDevnode . \(Device d) -> d
+
+-- | Make options for a device capable of precisely the events in the list.
+deviceOptsFromEvents ::
+    Maybe (AbsoluteAxis -> AbsInfo) ->
+    Maybe (RepeatEvent -> Int) ->
+    [EventData] ->
+    DeviceOpts
+--TODO use records or lenses to reduce boilerplate
+deviceOptsFromEvents absInfo rep =
+    ( \(keys, relAxes, absAxes, miscs, switchs, leds, sounds, reps, ffs, powers, ffStats) ->
+        let phys = Nothing
+            uniq = Nothing
+            idProduct = Nothing
+            idVendor = Nothing
+            idBustype = Nothing
+            idVersion = Nothing
+         in DeviceOpts{..}
+    )
+        . flip execState (mempty, mempty, mempty, mempty, mempty, mempty, mempty, mempty, mempty, mempty, mempty)
+        . traverse_ \case
+            SyncEvent _ -> pure ()
+            KeyEvent e _ -> modify \(a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) ->
+                (e : a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10)
+            RelativeEvent e _ -> modify \(a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) ->
+                (a0, e : a1, a2, a3, a4, a5, a6, a7, a8, a9, a10)
+            AbsoluteEvent e _ -> modify \(a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) ->
+                (a0, a1, (e, maybe (AbsInfo 0 0 0 0 0 0) ($ e) absInfo) : a2, a3, a4, a5, a6, a7, a8, a9, a10)
+            MiscEvent e _ -> modify \(a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) ->
+                (a0, a1, a2, e : a3, a4, a5, a6, a7, a8, a9, a10)
+            SwitchEvent e _ -> modify \(a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) ->
+                (a0, a1, a2, a3, e : a4, a5, a6, a7, a8, a9, a10)
+            LEDEvent e _ -> modify \(a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) ->
+                (a0, a1, a2, a3, a4, e : a5, a6, a7, a8, a9, a10)
+            SoundEvent e _ -> modify \(a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) ->
+                (a0, a1, a2, a3, a4, a5, e : a6, a7, a8, a9, a10)
+            RepeatEvent e _ -> modify \(a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) ->
+                (a0, a1, a2, a3, a4, a5, a6, (e, maybe 0 ($ e) rep) : a7, a8, a9, a10)
+            ForceFeedbackEvent e _ -> modify \(a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) ->
+                (a0, a1, a2, a3, a4, a5, a6, a7, e : a8, a9, a10)
+            PowerEvent e _ -> modify \(a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) ->
+                (a0, a1, a2, a3, a4, a5, a6, a7, a8, e : a9, a10)
+            ForceFeedbackStatusEvent e _ -> modify \(a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) ->
+                (a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, e : a10)
+            UnknownEvent{} -> pure ()

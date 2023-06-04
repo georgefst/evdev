@@ -9,7 +9,6 @@ import Data.Time
 import System.Environment
 import Text.Read
 
-import Control.Monad.State (execState, modify)
 import Streamly.Prelude qualified as S
 
 import Evdev
@@ -25,20 +24,7 @@ main = getArgs >>= \case
         S.mapM_ print $ readEvents d
     ["replay"] -> do
         evs <- map (fromMaybe (error "failed to parse event") . readMaybe) . lines <$> getContents
-        d <- Uinput.newDevice "evdev-replay" $ flip execState defaultDeviceOpts $ for_ (map eventData evs) \case
-            SyncEvent _ -> pure ()
-            KeyEvent e _ -> modify \o -> o{keys = e : o.keys}
-            RelativeEvent e _ -> modify \o -> o{relAxes = e : o.relAxes}
-            AbsoluteEvent e _ -> modify \o -> o{absAxes = (e, AbsInfo 0 0 0 0 0 0) : o.absAxes}
-            MiscEvent e _ -> modify \o -> o{miscs = e : o.miscs}
-            SwitchEvent e _ -> modify \o -> o{switchs = e : o.switchs}
-            LEDEvent e _ -> modify \o -> o{leds = e : o.leds}
-            SoundEvent e _ -> modify \o -> o{sounds = e : o.sounds}
-            RepeatEvent e _ -> modify \o -> o{reps = (e, 0) : o.reps}
-            ForceFeedbackEvent e _ -> modify \o -> o{ffs = e : o.ffs}
-            PowerEvent e _ -> modify \o -> o{powers = e : o.powers}
-            ForceFeedbackStatusEvent e _ -> modify \o -> o{ffStats = e : o.ffStats}
-            UnknownEvent{} -> pure ()
+        d <- Uinput.newDevice "evdev-replay" . deviceOptsFromEvents Nothing Nothing $ map eventData evs
         traverse_
             (\(e, t) -> threadDelay (fromInteger $ diffTimeToPicoseconds t `div` 1_000_000) >> writeEvent d e)
             ( maybe id ((:) . (\e -> (e.eventData, 0))) (listToMaybe evs) $
