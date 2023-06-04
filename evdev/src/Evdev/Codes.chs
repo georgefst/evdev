@@ -1,5 +1,3 @@
-{-# LANGUAGE PatternSynonyms #-}
-
 {-
 TODO haddock doesn't quite work correctly with LINE pragmas
     https://github.com/haskell/haddock/issues/441
@@ -11,7 +9,7 @@ seems to be on its way to being fixed with `.hie` files (enable `-fwrite-ide-inf
 
 -- | Datatypes corresponding to the constants in [input-event-codes.h](https://github.com/torvalds/linux/blob/master/include/uapi/linux/input-event-codes.h).
 -- See [the Linux Kernel documentation](https://www.kernel.org/doc/html/latest/input/event-codes.html) for full details, noting that all names have been mechanically transformed into CamelCase.
-module Evdev.Codes 
+module Evdev.Codes
     ( EventType(..)
     , SyncEvent(..)
     , Key

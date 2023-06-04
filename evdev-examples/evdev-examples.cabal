@@ -72,12 +72,10 @@ executable evdev-replay
     ghc-options:
         -threaded
         -Wall
-    default-language: Haskell2010
+    default-language: GHC2021
     default-extensions:
         BlockArguments
-        ImportQualifiedPost
         LambdaCase
-        NumericUnderscores
         OverloadedRecordDot
         OverloadedStrings
         ViewPatterns

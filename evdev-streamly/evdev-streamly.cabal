@@ -36,14 +36,9 @@ library
         streamly ^>= 0.8,
         streamly-fsnotify ^>= 1.1.1,
         unix ^>= 2.7.2,
-    default-language: Haskell2010
+    default-language: GHC2021
     default-extensions:
-        DerivingStrategies
-        FlexibleContexts
-        GeneralizedNewtypeDeriving
         LambdaCase
-        NumericUnderscores
         OverloadedStrings
-        ScopedTypeVariables
         TupleSections
         ViewPatterns
