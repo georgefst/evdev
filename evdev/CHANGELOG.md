@@ -1,5 +1,10 @@
 # Revision history for evdev
 
+## 2.3.0 -- 01-09-2023
+* Add `deviceOptsFromEvents` for more easily creating UInput devices with desired capabilities.
+* Add some extra `Read` instances.
+* Fix duplicate keys by using pattern synonyms.
+
 ## 2.2.0 -- 05-11-2022
 * More bindings:
     * `deviceAbsAxis`
