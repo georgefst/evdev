@@ -205,7 +205,7 @@ toCTimeVal t = LL.CTimeVal n (round $ f * 1_000_000)
 Use 'newDeviceFromFd' if you need more control over how the device is created.
 -}
 newDevice :: RawFilePath -> IO Device
-newDevice path = newDeviceFromFd =<< openFd path ReadWrite Nothing defaultFileFlags
+newDevice path = newDeviceFromFd =<< openFd path ReadWrite defaultFileFlags
 
 {- | Generalisation of 'newDevice', in case one needs control over the file descriptor,
 e.g. in order to set a particular 'System.Posix.FileMode', 'System.Posix.OpenMode', or 'System.Posix.OpenFileFlags'.

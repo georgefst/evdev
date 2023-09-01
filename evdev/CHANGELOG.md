@@ -1,5 +1,8 @@
 # Revision history for evdev
 
+## 2.3.1 -- 01-09-2023
+* Migrate to `unix-2.8`.
+
 ## 2.3.0 -- 01-09-2023
 * Add `deviceOptsFromEvents` for more easily creating UInput devices with desired capabilities.
 * Add some extra `Read` instances.
