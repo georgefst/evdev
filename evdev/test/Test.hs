@@ -12,12 +12,14 @@ import Data.Time
 import Evdev
 import Evdev.Codes
 import qualified Evdev.Uinput as Uinput
-import RawFilePath
-import System.FilePath.ByteString
+import qualified System.Directory.OsPath
 import System.IO.Error
+import System.OsPath.Posix
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
+
+import System.OsString.Internal.Types (OsString(..))
 
 main :: IO ()
 main = defaultMain $ testGroup "Tests" [smoke, inverses]
@@ -83,3 +85,7 @@ retryIf p x = go 100
     go tries =
         x `catch` \e ->
             if p e && tries /= 0 then threadDelay 10_000 >> go (tries - 1) else throw e
+
+-- TODO copied from `evdev-streamly` - see there for issues
+listDirectory :: PosixPath -> IO [PosixPath]
+listDirectory = fmap (map getOsString) . System.Directory.OsPath.listDirectory . OsString

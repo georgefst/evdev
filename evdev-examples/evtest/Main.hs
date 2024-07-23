@@ -1,6 +1,9 @@
 module Main (main) where
 
 import qualified Data.ByteString.Char8 as BS
+import Data.Maybe (fromMaybe)
+import System.OsPath.Posix (PosixPath, (</>))
+import System.OsString.Posix (fromBytes)
 import Text.Pretty.Simple (pPrint)
 
 import qualified Streamly.Prelude as S
@@ -17,9 +20,13 @@ main = do
         readEventsMany
             if null ns
                 then allDevices <> newDevices
-                else makeDevices $ S.fromFoldable $ map ((evdevDir <> "/event") <>) ns
+                else makeDevices $ S.fromFoldable $ map ((evdevDir </>) . fromBytes' . ("event" <>)) ns
 
 printDevice :: Device -> IO ()
 printDevice dev = do
     name <- deviceName dev
     BS.putStrLn $ devicePath dev <> ":\n    " <> name
+
+-- TODO `filepath` docs explicitly say this is a no-op on Posix, so why doesn't it export a safe version?
+fromBytes' :: BS.ByteString -> PosixPath
+fromBytes' = fromMaybe (error "invalid path") . fromBytes
