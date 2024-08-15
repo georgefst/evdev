@@ -23,7 +23,7 @@ common common
         bytestring ^>= {0.10, 0.11, 0.12},
         containers ^>= {0.6.2, 0.7},
         extra ^>= {1.6.18, 1.7},
-        filepath-bytestring ^>= 1.4.2,
+        filepath-bytestring ^>= {1.4.2, 1.5},
         monad-loops ^>= 0.4.3,
         mtl ^>= {2.2, 2.3},
         rawfilepath ^>= {1.0, 1.1},
@@ -68,6 +68,6 @@ test-suite test
         evdev,
         tasty ^>= {1.4.1, 1.5},
         tasty-hunit ^>= 0.10.0.3,
-        tasty-quickcheck ^>= 0.10.1.1,
+        tasty-quickcheck ^>= {0.10.1.1, 0.11},
     ghc-options:
         -threaded
