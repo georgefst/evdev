@@ -59,3 +59,9 @@ jobs:
         run: |
           cabal build test
           sudo $(cabal list-bin test)
+
+      - name: Check cabal file
+        run: cabal check
+
+      - name: Build documentation
+        run: cabal haddock all
