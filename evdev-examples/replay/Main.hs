@@ -4,9 +4,9 @@ import Control.Concurrent
 import Control.Monad
 import Data.Foldable
 import Data.Maybe
-import Data.String
 import Data.Time
 import System.Environment
+import System.OsPath.Posix
 import Text.Read
 
 import Streamly.Prelude qualified as S
@@ -18,8 +18,8 @@ import Evdev.Uinput qualified as Uinput
 
 main :: IO ()
 main = getArgs >>= \case
-    "record" : dev : ((\case ["grab"] -> Just True; [] -> Just False; _ -> Nothing) -> Just grab) -> do
-        d <- newDevice $ fromString dev
+    "record" : (encodeUtf -> Just dev) : ((\case ["grab"] -> Just True; [] -> Just False; _ -> Nothing) -> Just grab) -> do
+        d <- newDevice dev
         when grab $ grabDevice d
         S.mapM_ print $ readEvents d
     ["replay"] -> do

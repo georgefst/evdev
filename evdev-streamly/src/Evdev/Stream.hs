@@ -13,22 +13,24 @@ module Evdev.Stream (
 import Data.Bool
 import Data.Either.Extra
 import Data.Functor
+import Data.Maybe
 import System.IO
 import System.IO.Error
 
 import Control.Concurrent (threadDelay)
 import Data.Set (Set)
 import qualified Data.Set as Set
-import qualified Data.ByteString.Char8 as BS
-import RawFilePath.Directory (RawFilePath,doesFileExist,listDirectory)
 import qualified Streamly.FSNotify as N
 import Streamly.FSNotify (FSEntryType(NotDir),watchDirectory)
-import System.FilePath.ByteString ((</>))
+import qualified System.Directory.OsPath
+import System.OsPath.Posix (PosixPath, (</>), decodeUtf, encodeUtf)
 
 import Streamly.Prelude (AsyncT, IsStream, MonadAsync, SerialT)
 import qualified Streamly.Prelude as S
 
 import Evdev
+
+import System.OsString.Internal.Types (OsString(..))
 
 --TODO provide a 'group' operation on streams, representing packets as sets
 
@@ -48,7 +50,7 @@ readEventsMany ds = S.fromAsync $ do
         readEvents' :: Device -> SerialT IO Event
 
 -- | Create devices for all paths in the stream.
-makeDevices :: IsStream t => t IO RawFilePath -> t IO Device
+makeDevices :: IsStream t => t IO PosixPath -> t IO Device
 makeDevices = S.mapM newDevice
 
 -- | All events on all valid devices (in /\/dev\/input/).
@@ -77,15 +79,15 @@ allDevices =
 newDevices :: (IsStream t, Monad (t IO)) => t IO Device
 newDevices =
     let -- 'watching' keeps track of the set of paths which have been added, but don't yet have the right permissions
-        watch :: Set RawFilePath -> N.Event -> IO (Maybe Device, Set RawFilePath)
+        watch :: Set PosixPath -> N.Event -> IO (Maybe Device, Set PosixPath)
         watch watching = \case
-            N.Added (BS.pack -> p) _ NotDir ->
+            N.Added (enc -> p) _ NotDir ->
                 tryNewDevice p <&> \case
                     Right d -> -- success - return new device
                         (Just d, watching)
                     Left e -> -- fail - if it's only a permission error then watch for changes on device
                         (Nothing, applyWhen (isPermissionError e) (Set.insert p) watching)
-            N.Modified (BS.pack -> p) _ NotDir ->
+            N.Modified (enc -> p) _ NotDir ->
                 if p `elem` watching then
                     tryNewDevice p <&> \case
                         Right d -> -- success - no longer watch for changes
@@ -94,12 +96,14 @@ newDevices =
                             (Nothing, watching)
                 else -- this isn't an event we care about
                     return (Nothing, watching)
-            N.Removed (BS.pack -> p) _ NotDir -> -- device is gone - no longer watch for changes
+            N.Removed (enc -> p) _ NotDir -> -- device is gone - no longer watch for changes
                 return (Nothing, Set.delete p watching)
             _ -> return (Nothing, watching)
         tryNewDevice = printIOError . newDevice
+        enc = fromMaybe (error "bad fsnotify path conversion") . encodeUtf
+        dec = fromMaybe (error "bad fsnotify path conversion") . decodeUtf
     in do
-        (_,es) <- S.fromEffect $ watchDirectory (BS.unpack evdevDir) N.everything
+        (_,es) <- S.fromEffect $ watchDirectory (dec evdevDir) N.everything
         scanMaybe watch Set.empty es
 
 --TODO just fix 'newDevices'
@@ -108,13 +112,15 @@ newDevices =
 newDevices' :: (IsStream t, Monad (t IO)) => Int -> t IO Device
 newDevices' delay =
     let f = \case
-            N.Added (BS.pack -> p) _ NotDir -> do
+            N.Added (enc -> p) _ NotDir -> do
                 threadDelay delay
                 eitherToMaybe <$> tryNewDevice p
             _ -> return Nothing
         tryNewDevice = printIOError . newDevice
+        enc = fromMaybe (error "bad fsnotify path conversion") . encodeUtf
+        dec = fromMaybe (error "bad fsnotify path conversion") . decodeUtf
     in do
-        (_,es) <- S.fromEffect $ watchDirectory (BS.unpack evdevDir) N.everything
+        (_,es) <- S.fromEffect $ watchDirectory (dec evdevDir) N.everything
         S.mapMaybeM f es
 
 
@@ -147,3 +153,9 @@ printIOError' = fmap eitherToMaybe . printIOError
 -- apply the function iff the guard passes
 applyWhen :: Bool -> (a -> a) -> a -> a
 applyWhen = flip $ bool id
+
+-- TODO hmm unsure what to do here - at the very least move these...
+doesFileExist :: PosixPath -> IO Bool
+doesFileExist = System.Directory.OsPath.doesFileExist . OsString
+listDirectory :: PosixPath -> IO [PosixPath]
+listDirectory = fmap (map getOsString) . System.Directory.OsPath.listDirectory . OsString

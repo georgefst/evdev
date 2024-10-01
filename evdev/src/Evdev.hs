@@ -67,10 +67,10 @@ import Data.Tuple.Extra (uncurry3)
 import Data.Word (Word16)
 import Foreign ((.|.))
 import Foreign.C (CUInt)
+import System.OsPath.Posix (PosixPath, encodeUtf)
 import System.Posix.Process (getProcessID)
 import System.Posix.Files (readSymbolicLink)
-import System.Posix.ByteString (Fd, RawFilePath)
-import System.Posix.IO.ByteString (OpenMode (..), defaultFileFlags, openFd)
+import System.Posix.PosixString (Fd, OpenMode (..), defaultFileFlags, openFd)
 
 import qualified Evdev.LowLevel as LL
 import Evdev.Codes
@@ -204,7 +204,7 @@ toCTimeVal t = LL.CTimeVal n (round $ f * 1_000_000)
 {- | Create a device from a valid path - usually /\/dev\/input\/eventX/ for some numeric /X/.
 Use 'newDeviceFromFd' if you need more control over how the device is created.
 -}
-newDevice :: RawFilePath -> IO Device
+newDevice :: PosixPath -> IO Device
 newDevice path = newDeviceFromFd =<< openFd path ReadWrite defaultFileFlags
 
 {- | Generalisation of 'newDevice', in case one needs control over the file descriptor,
@@ -223,8 +223,8 @@ newDeviceFromFd fd = do
     return $ Device{cDevice = dev, devicePath = pack path}
 
 -- | The usual directory containing devices (/"\/dev\/input"/).
-evdevDir :: RawFilePath
-evdevDir = "/dev/input"
+evdevDir :: PosixPath
+evdevDir = fromMaybe (error "evdevDir invalid") $ encodeUtf "/dev/input"
 
 deviceName :: Device -> IO ByteString
 deviceName = join . LL.deviceName . cDevice

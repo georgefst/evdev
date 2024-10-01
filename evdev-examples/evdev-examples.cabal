@@ -13,6 +13,7 @@ executable evtest
         bytestring,
         evdev,
         evdev-streamly,
+        filepath,
         pretty-simple,
         streamly,
     ghc-options:
@@ -66,6 +67,7 @@ executable evdev-replay
         base,
         evdev,
         evdev-streamly,
+        filepath,
         mtl,
         streamly,
         time,
