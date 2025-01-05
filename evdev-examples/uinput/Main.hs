@@ -1,6 +1,7 @@
 module Main (main) where
 
 import Control.Monad
+import Data.Maybe (mapMaybe)
 
 import qualified Evdev.Codes as Codes
 import Evdev.Uinput
@@ -10,7 +11,7 @@ main = do
     dev <-
         newDevice
             "haskell-uinput-echo-example"
-            defaultDeviceOpts{keys = [Codes.KeyA .. Codes.KeyZ] ++ [Codes.Key1 .. Codes.Key0]}
+            defaultDeviceOpts{keys = mapMaybe charToEvent (['a' .. 'z'] ++ ['0'..'9'])}
     forever do
         cs <- getLine
         writeBatch dev [KeyEvent k a | Just k <- map charToEvent cs, a <- [Pressed, Released]]
