@@ -11,7 +11,7 @@ jobs:
     name: main
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set user input permissions
         run: sudo usermod -a -G input $USER
@@ -20,7 +20,7 @@ jobs:
         uses: haskell-actions/setup@v2
         id: setup
         with:
-          ghc-version: '9.4'
+          ghc-version: '9.6'
           cabal-version: '3.10'
           cabal-update: true
 
@@ -33,7 +33,7 @@ jobs:
           cabal build all --dry-run
 
       - name: Restore cached dependencies
-        uses: actions/cache/restore@v3
+        uses: actions/cache/restore@v4
         id: cache
         env:
           key: ${{ runner.os }}-ghc-${{ steps.setup.outputs.ghc-version }}-cabal-${{ steps.setup.outputs.cabal-version }}
@@ -46,8 +46,8 @@ jobs:
         run: cabal build all --only-dependencies
 
       - name: Save cached dependencies
-        uses: actions/cache/save@v3
-        if: ${{ steps.cache.outputs.cache-primary-key != steps.cache.outputs.cache-matched-key }}
+        uses: actions/cache/save@v4
+        if: steps.cache.outputs.cache-hit != 'true'
         with:
           path: ${{ steps.setup.outputs.cabal-store }}
           key: ${{ steps.cache.outputs.cache-primary-key }}
@@ -59,3 +59,9 @@ jobs:
         run: |
           cabal build test
           sudo $(cabal list-bin test)
+
+      - name: Check cabal files
+        run: (cd evdev && cabal check) && (cd evdev-streamly && cabal check)
+
+      - name: Build documentation
+        run: cabal haddock all

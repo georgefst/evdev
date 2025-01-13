@@ -11,7 +11,7 @@ homepage:            https://github.com/georgefst/evdev
 license:             BSD-3-Clause
 license-file:        LICENSE
 category:            Streamly, System
-extra-source-files:
+extra-doc-files:
     CHANGELOG.md
     README.md
 
