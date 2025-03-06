@@ -30,7 +30,7 @@ library
         bytestring ^>= {0.10, 0.11, 0.12},
         containers ^>= {0.6.2, 0.7},
         evdev ^>= {2.1, 2.2, 2.3},
-        extra ^>= {1.6.18, 1.7},
+        extra ^>= {1.6.18, 1.7, 1.8},
         filepath-bytestring ^>= {1.4.2, 1.5},
         mtl ^>= {2.2, 2.3},
         rawfilepath ^>= {1.0, 1.1},
