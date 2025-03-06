@@ -13,12 +13,3 @@ if impl(ghc >= 9.10)
     allow-newer:
         -- deprecated - we'll replace it ASAP in favour of `OsPath`
         filepath-bytestring:*,
-    -- 9.10 supported but unreleased:
-    -- https://github.com/composewell/streamly/pull/2749
-    -- https://github.com/composewell/streamly/issues/2748
-    source-repository-package
-        type: git
-        location: https://github.com/composewell/streamly
-        tag: 9539dcca361bb05eaa04cfe5be99ce38d8a1f98f
-        subdir: . core
-    allow-newer: *:streamly, *:streamly-core,
