@@ -2,7 +2,7 @@ module Main (main) where
 
 import Control.Exception
 import Control.Monad
-import Data.Maybe (mapMaybe)
+import Data.Maybe
 import System.Exit
 import System.IO.Error
 
