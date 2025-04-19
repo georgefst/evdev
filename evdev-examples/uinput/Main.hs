@@ -11,7 +11,7 @@ main = do
     dev <-
         newDevice
             "haskell-uinput-echo-example"
-            defaultDeviceOpts{keys = mapMaybe charToEvent (['a' .. 'z'] ++ ['0'..'9'])}
+            defaultDeviceOpts{keys = mapMaybe charToEvent (['a' .. 'z'] ++ ['0' .. '9'])}
     forever do
         cs <- getLine
         writeBatch dev [KeyEvent k a | Just k <- map charToEvent cs, a <- [Pressed, Released]]
