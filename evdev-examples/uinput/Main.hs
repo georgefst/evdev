@@ -1,7 +1,10 @@
 module Main (main) where
 
+import Control.Exception
 import Control.Monad
 import Data.Maybe (mapMaybe)
+import System.Exit
+import System.IO.Error
 
 import qualified Evdev.Codes as Codes
 import Evdev.Uinput
@@ -13,7 +16,11 @@ main = do
             "haskell-uinput-echo-example"
             defaultDeviceOpts{keys = mapMaybe charToEvent (['a' .. 'z'] ++ ['0' .. '9'])}
     forever do
-        cs <- getLine
+        cs <-
+            catchJust
+                (guard . isEOFError)
+                getLine
+                \() -> exitSuccess
         writeBatch dev [KeyEvent k a | Just k <- map charToEvent cs, a <- [Pressed, Released]]
 
 charToEvent :: Char -> Maybe Codes.Key
