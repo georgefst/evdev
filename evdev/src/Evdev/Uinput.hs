@@ -32,7 +32,7 @@ import Evdev.Codes
 import qualified Evdev.LowLevel as LL
 import Util
 
-import Control.Concurrent (newEmptyMVar, putMVar, readMVar)
+import Control.Concurrent (newEmptyMVar, putMVar, readMVar, threadDelay)
 import Control.Monad.Loops (untilM_)
 import Data.Maybe (fromMaybe)
 import GHC.Event qualified as Event
@@ -112,6 +112,7 @@ newDevice name DeviceOpts{..} = do
         Just devnode -> untilM_ (pure ()) $ (== devnode) <$> readMVar mv
     Event.unregisterFd eventManager fdKey
     UDev.freeUDev udev
+    threadDelay 100000
     pure uinputDev
   where
     cec :: CErrCall a => IO a -> IO (CErrCallRes a)
