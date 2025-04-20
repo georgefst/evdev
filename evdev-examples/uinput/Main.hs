@@ -2,6 +2,7 @@ module Main (main) where
 
 import Control.Exception
 import Control.Monad
+import Data.Char
 import Data.Maybe
 import System.Exit
 import System.IO.Error
@@ -14,14 +15,14 @@ main = do
     dev <-
         newDevice
             "haskell-uinput-echo-example"
-            defaultDeviceOpts{keys = mapMaybe charToEvent (['a' .. 'z'] ++ ['0' .. '9'])}
+            defaultDeviceOpts{keys = mapMaybe charToEvent (['a' .. 'z'] ++ ['0' .. '9'] ++ [' ', '.', ',', '\''])}
     forever do
         cs <-
             catchJust
                 (guard . isEOFError)
                 getLine
                 \() -> exitSuccess
-        writeBatch dev [KeyEvent k a | Just k <- map charToEvent cs, a <- [Pressed, Released]]
+        writeBatch dev [KeyEvent k a | Just k <- map (charToEvent . toLower) cs, a <- [Pressed, Released]]
 
 charToEvent :: Char -> Maybe Codes.Key
 charToEvent = \case
@@ -61,4 +62,8 @@ charToEvent = \case
     'x' -> Just Codes.KeyX
     'y' -> Just Codes.KeyY
     'z' -> Just Codes.KeyZ
+    ' ' -> Just Codes.KeySpace
+    '.' -> Just Codes.KeyDot
+    ',' -> Just Codes.KeyApostrophe
+    '\'' -> Just Codes.KeyApostrophe
     _ -> Nothing
