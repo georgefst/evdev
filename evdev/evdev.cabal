@@ -29,6 +29,7 @@ common common
         rawfilepath ^>= {1.0, 1.1},
         time ^>= {1.9.3, 1.10, 1.11, 1.12, 1.13, 1.14},
         unix ^>= 2.8,
+        udev,
     default-language: GHC2021
     default-extensions:
         BlockArguments
