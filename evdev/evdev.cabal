@@ -53,14 +53,13 @@ library
         Evdev.Uinput
     other-modules:
         Evdev.LowLevel
+        Evdev.Raw
         Util
     hs-source-dirs: src
     c-sources:
         src-c/evdev-hs.c
     pkgconfig-depends:
         libevdev
-    build-tool-depends:
-        c2hs:c2hs
 
 test-suite test
     import: common
