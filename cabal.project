@@ -3,6 +3,18 @@ packages:
     evdev-streamly
     evdev-examples
 
+source-repository-package
+    type: git
+    location: https://github.com/well-typed/hs-bindgen
+    tag: 3c4af10590d0d09e825a9735e9a03d7f60914e21
+    subdir: c-expr-dsl c-expr-runtime hs-bindgen hs-bindgen-runtime
+    --sha256: UCA7w+u20+CX1XN8so76UfJkM0FKKpljOgweP2FjtS4=
+source-repository-package
+    type: git
+    location: https://github.com/well-typed/libclang
+    tag: 1054474fae403bfb52c7919680cac03d3d3d4237
+    --sha256: LTAyNMY4Vu0vPeEq2wXB0KWY4kGtqtHTRmADjLdkv78=
+
 if impl(ghc >= 9.10)
     allow-newer:
         -- deprecated - we'll replace it ASAP in favour of `OsPath`

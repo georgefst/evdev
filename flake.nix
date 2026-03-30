@@ -18,6 +18,12 @@
                 shell.tools.cabal = "latest";
                 shell.tools.haskell-language-server = "latest";
                 shell.withHoogle = false;
+                modules = [{
+                  packages.libclang-bindings.components.library = {
+                    build-tools = [ pkgs.llvmPackages.llvm ];
+                    libs = [ pkgs.llvmPackages.libclang ];
+                  };
+                }];
               };
           })
         ];
