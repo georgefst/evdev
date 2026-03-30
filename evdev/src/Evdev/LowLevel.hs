@@ -374,7 +374,7 @@ createFromDevice dev (Fd fd) = withDevice dev $ \devPtr -> do
     udevPtrPtr <- mallocForeignPtrBytes (sizeOf (undefined :: Ptr ()))
     (e, udevPtr) <- withForeignPtr udevPtrPtr $ \pp ->
         (,) <$> Raw.libevdev_uinput_create_from_device (constPtr devPtr) fd (castPtr pp) <*> peek pp
-    udevFP <- newForeignPtr_ udevPtr
+    udevFP <- newForeignPtr finalizer_libevdev_uinput_destroy udevPtr
     pure (Errno e, UDevice udevFP)
 
 getSyspath :: UDevice -> IO (Maybe ByteString)
