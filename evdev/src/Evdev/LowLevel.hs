@@ -94,16 +94,42 @@ import Evdev.Codes (DeviceProperty, EventType, LEDEvent)
 -- * Enums
 
 data ReadFlag = Sync | Normal | ForceSync | Blocking
-    deriving (Eq, Ord, Show, Enum)
+    deriving (Eq, Ord, Show)
+instance Enum ReadFlag where
+    fromEnum Sync      = 1
+    fromEnum Normal    = 2
+    fromEnum ForceSync = 4
+    fromEnum Blocking  = 8
+    toEnum 1 = Sync
+    toEnum 2 = Normal
+    toEnum 4 = ForceSync
+    toEnum 8 = Blocking
+    toEnum n = error $ "ReadFlag.toEnum: Cannot match " ++ show n
 
 data GrabMode = LibevdevGrab | LibevdevUngrab
-    deriving (Show, Enum)
+    deriving (Show)
+instance Enum GrabMode where
+    fromEnum LibevdevGrab   = 3
+    fromEnum LibevdevUngrab = 4
+    toEnum 3 = LibevdevGrab
+    toEnum 4 = LibevdevUngrab
+    toEnum n = error $ "GrabMode.toEnum: Cannot match " ++ show n
 
 data LEDValue = LedOn | LedOff
-    deriving (Bounded, Eq, Ord, Read, Show, Enum)
+    deriving (Bounded, Eq, Ord, Read, Show)
+instance Enum LEDValue where
+    fromEnum LedOn  = 3
+    fromEnum LedOff = 4
+    toEnum 3 = LedOn
+    toEnum 4 = LedOff
+    toEnum n = error $ "LEDValue.toEnum: Cannot match " ++ show n
 
 data UInputOpenMode = UOMManaged
-    deriving (Show, Enum)
+    deriving (Show)
+instance Enum UInputOpenMode where
+    fromEnum UOMManaged = -2
+    toEnum (-2) = UOMManaged
+    toEnum n = error $ "UInputOpenMode.toEnum: Cannot match " ++ show n
 
 readFlagToRaw :: ReadFlag -> Raw.Libevdev_read_flag
 readFlagToRaw = \case
