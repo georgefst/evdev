@@ -93,43 +93,51 @@ import Evdev.Codes (DeviceProperty, EventType, LEDEvent)
 
 -- * Enums
 
+-- | Extract an Int from an hs-bindgen enum newtype
+rawEnum :: Integral a => a -> Int
+rawEnum = fromIntegral
+
 data ReadFlag = Sync | Normal | ForceSync | Blocking
     deriving (Eq, Ord, Show)
 instance Enum ReadFlag where
-    fromEnum Sync      = 1
-    fromEnum Normal    = 2
-    fromEnum ForceSync = 4
-    fromEnum Blocking  = 8
-    toEnum 1 = Sync
-    toEnum 2 = Normal
-    toEnum 4 = ForceSync
-    toEnum 8 = Blocking
-    toEnum n = error $ "ReadFlag.toEnum: Cannot match " ++ show n
+    fromEnum Sync      = let Raw.Libevdev_read_flag n = Raw.LIBEVDEV_READ_FLAG_SYNC       in rawEnum n
+    fromEnum Normal    = let Raw.Libevdev_read_flag n = Raw.LIBEVDEV_READ_FLAG_NORMAL      in rawEnum n
+    fromEnum ForceSync = let Raw.Libevdev_read_flag n = Raw.LIBEVDEV_READ_FLAG_FORCE_SYNC  in rawEnum n
+    fromEnum Blocking  = let Raw.Libevdev_read_flag n = Raw.LIBEVDEV_READ_FLAG_BLOCKING    in rawEnum n
+    toEnum n
+        | n == fromEnum Sync      = Sync
+        | n == fromEnum Normal    = Normal
+        | n == fromEnum ForceSync = ForceSync
+        | n == fromEnum Blocking  = Blocking
+        | otherwise = error $ "ReadFlag.toEnum: Cannot match " ++ show n
 
 data GrabMode = LibevdevGrab | LibevdevUngrab
     deriving (Show)
 instance Enum GrabMode where
-    fromEnum LibevdevGrab   = 3
-    fromEnum LibevdevUngrab = 4
-    toEnum 3 = LibevdevGrab
-    toEnum 4 = LibevdevUngrab
-    toEnum n = error $ "GrabMode.toEnum: Cannot match " ++ show n
+    fromEnum LibevdevGrab   = let Raw.Libevdev_grab_mode n = Raw.LIBEVDEV_GRAB   in rawEnum n
+    fromEnum LibevdevUngrab = let Raw.Libevdev_grab_mode n = Raw.LIBEVDEV_UNGRAB  in rawEnum n
+    toEnum n
+        | n == fromEnum LibevdevGrab   = LibevdevGrab
+        | n == fromEnum LibevdevUngrab = LibevdevUngrab
+        | otherwise = error $ "GrabMode.toEnum: Cannot match " ++ show n
 
 data LEDValue = LedOn | LedOff
     deriving (Bounded, Eq, Ord, Read, Show)
 instance Enum LEDValue where
-    fromEnum LedOn  = 3
-    fromEnum LedOff = 4
-    toEnum 3 = LedOn
-    toEnum 4 = LedOff
-    toEnum n = error $ "LEDValue.toEnum: Cannot match " ++ show n
+    fromEnum LedOn  = let Raw.Libevdev_led_value n = Raw.LIBEVDEV_LED_ON  in rawEnum n
+    fromEnum LedOff = let Raw.Libevdev_led_value n = Raw.LIBEVDEV_LED_OFF in rawEnum n
+    toEnum n
+        | n == fromEnum LedOn  = LedOn
+        | n == fromEnum LedOff = LedOff
+        | otherwise = error $ "LEDValue.toEnum: Cannot match " ++ show n
 
 data UInputOpenMode = UOMManaged
     deriving (Show)
 instance Enum UInputOpenMode where
-    fromEnum UOMManaged = -2
-    toEnum (-2) = UOMManaged
-    toEnum n = error $ "UInputOpenMode.toEnum: Cannot match " ++ show n
+    fromEnum UOMManaged = let Raw.Libevdev_uinput_open_mode n = Raw.LIBEVDEV_UINPUT_OPEN_MANAGED in rawEnum n
+    toEnum n
+        | n == fromEnum UOMManaged = UOMManaged
+        | otherwise = error $ "UInputOpenMode.toEnum: Cannot match " ++ show n
 
 readFlagToRaw :: ReadFlag -> Raw.Libevdev_read_flag
 readFlagToRaw = \case
