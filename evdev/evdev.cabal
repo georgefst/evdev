@@ -51,7 +51,6 @@ library
         Evdev
         Evdev.Codes
         Evdev.Uinput
-        Evdev.LowLevel
         Evdev.Raw
     other-modules:
         Util

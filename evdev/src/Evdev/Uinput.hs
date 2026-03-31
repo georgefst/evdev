@@ -29,12 +29,12 @@ import Foreign
 import Foreign.C
 import Foreign.C.ConstPtr
 
+import Data.ByteString (useAsCString)
 import Data.ByteString.Char8 (ByteString)
 import Data.Coerce (coerce)
 
 import Evdev hiding (Device, newDevice)
 import Evdev.Codes
-import qualified Evdev.LowLevel as LL
 import qualified Evdev.Raw as Raw
 import Util
 
@@ -48,17 +48,15 @@ newDevice ::
     DeviceOpts ->
     IO Device
 newDevice name DeviceOpts{..} = do
-    dev <- LL.libevdev_new
-    LL.setDeviceName dev name
+    dev <- newForeignPtr Raw.finalizer_libevdev_hs_close =<< Raw.libevdev_new
+    withForeignPtr dev \p -> useAsCString name $ Raw.libevdev_set_name p . ConstPtr
 
-    let maybeSet :: (ForeignPtr Raw.Libevdev -> a -> IO ()) -> Maybe a -> IO ()
-        maybeSet = maybe mempty . ($ dev)
-    maybeSet LL.setDevicePhys phys
-    maybeSet LL.setDeviceUniq uniq
-    maybeSet LL.libevdev_set_id_product idProduct
-    maybeSet LL.libevdev_set_id_vendor idVendor
-    maybeSet LL.libevdev_set_id_bustype idBustype
-    maybeSet LL.libevdev_set_id_version idVersion
+    for_ phys \x -> withForeignPtr dev \p -> useAsCString x $ Raw.libevdev_set_phys p . ConstPtr
+    for_ uniq \x -> withForeignPtr dev \p -> useAsCString x $ Raw.libevdev_set_uniq p . ConstPtr
+    for_ idProduct \x -> withForeignPtr dev \p -> Raw.libevdev_set_id_product p $ fromIntegral x
+    for_ idVendor \x -> withForeignPtr dev \p -> Raw.libevdev_set_id_vendor p $ fromIntegral x
+    for_ idBustype \x -> withForeignPtr dev \p -> Raw.libevdev_set_id_bustype p $ fromIntegral x
+    for_ idVersion \x -> withForeignPtr dev \p -> Raw.libevdev_set_id_version p $ fromIntegral x
 
     let enable (dataPtr :: Maybe (Either (Ptr Raw.Input_absinfo) (Ptr Int))) t cs = do
             unless (null cs) $ cec $ withForeignPtr dev \devPtr ->
@@ -101,10 +99,10 @@ newDevice name DeviceOpts{..} = do
             (ConstPtr devPtr)
             (coerce (Raw.LIBEVDEV_UINPUT_OPEN_MANAGED).unwrap)
             pp
-        fmap Device . newForeignPtr LL.finalizer_libevdev_uinput_destroy =<< peek pp
+        fmap Device . newForeignPtr Raw.finalizer_libevdev_uinput_destroy =<< peek pp
   where
     cec :: CErrCall a => IO a -> IO (CErrCallRes a)
-    cec = cErrCall "newDevice" ()
+    cec = cErrCall "newDevice" mempty
 
 data DeviceOpts = DeviceOpts
     { phys :: Maybe ByteString

@@ -55,8 +55,10 @@ module Evdev (
 
 import Control.Arrow ((&&&))
 import Control.Monad (filterM, join)
+import Data.ByteString (packCString)
 import Data.ByteString.Char8 (ByteString, pack)
 import Data.Coerce (coerce)
+import Data.Function ((&))
 import Data.Functor ((<&>))
 import Data.Int (Int32)
 import Data.List.Extra (enumerate)
@@ -69,15 +71,14 @@ import qualified Data.Set as Set
 import Data.Time.Clock (DiffTime)
 import Data.Tuple.Extra (uncurry3)
 import Data.Word (Word16)
-import Foreign (alloca, (.|.), peek, ForeignPtr, withForeignPtr)
+import Foreign (alloca, (.|.), peek, ForeignPtr, withForeignPtr, newForeignPtr)
 import Foreign.C (CInt (CInt), CUInt (CUInt), CUShort (CUShort), Errno (Errno), eAGAIN, eOK)
-import Foreign.C.ConstPtr (ConstPtr (ConstPtr), unConstPtr)
+import Foreign.C.ConstPtr (ConstPtr (..))
 import System.Posix.Process (getProcessID)
 import System.Posix.Files (readSymbolicLink)
-import System.Posix.ByteString (Fd, RawFilePath)
+import System.Posix.ByteString (Fd (Fd), RawFilePath)
 import System.Posix.IO.ByteString (OpenMode (..), defaultFileFlags, openFd)
 
-import qualified Evdev.LowLevel as LL
 import qualified Evdev.Raw as Raw
 import Evdev.Codes
 import Util
@@ -160,7 +161,7 @@ ungrabDevice = grabDevice' Raw.LIBEVDEV_UNGRAB
 -- | Get the next event from the device.
 nextEvent :: Device -> IO Event
 nextEvent dev =
-    cErrCall "nextEvent" dev $ withForeignPtr (cDevice dev) \devPtr -> alloca \evPtr ->
+    cErrCallDev "nextEvent" dev $ withForeignPtr (cDevice dev) \devPtr -> alloca \evPtr ->
     (,)
         <$> (Errno <$> Raw.libevdev_next_event devPtr (convertFlags defaultReadFlags) evPtr)
         <*> (fromCEvent <$> peek evPtr)
@@ -170,7 +171,7 @@ Designed for use with devices created from a non-blocking file descriptor. Other
 -}
 nextEventMay :: Device -> IO (Maybe Event)
 nextEventMay dev =
-    cErrCall "nextEventMay" dev $ withForeignPtr (cDevice dev) \devPtr -> alloca \evPtr -> do
+    cErrCallDev "nextEventMay" dev $ withForeignPtr (cDevice dev) \devPtr -> alloca \evPtr -> do
     err <- Raw.libevdev_next_event devPtr (convertFlags nonBlockingReadFlags) evPtr
     if Errno err /= eOK
         then
@@ -246,7 +247,10 @@ __WARNING__: Don't attempt to reuse the 'Fd' - it will be closed when the 'Devic
 -}
 newDeviceFromFd :: Fd -> IO Device
 newDeviceFromFd fd = do
-    dev <- cErrCall "newDeviceFromFd" () $ LL.newDeviceFromFd fd
+    dev <- cErrCall "newDeviceFromFd" mempty do
+        dev <- newForeignPtr Raw.finalizer_libevdev_hs_close =<< Raw.libevdev_new
+        err <- withForeignPtr dev $ fmap Errno . flip Raw.libevdev_set_fd (coerce fd)
+        pure (err, dev)
     pid <- getProcessID
     path <- readSymbolicLink $ "/proc/" <> show pid <> "/fd/" <> show fd
     return $ Device{cDevice = dev, devicePath = pack path}
@@ -256,33 +260,37 @@ evdevDir :: RawFilePath
 evdevDir = "/dev/input"
 
 deviceName :: Device -> IO ByteString
-deviceName = join . LL.deviceName . cDevice
+deviceName = join . flip withForeignPtr (fmap (packCString . unConstPtr) . Raw.libevdev_get_name . ConstPtr) . cDevice
 
 deviceFd :: Device -> IO Fd
-deviceFd = LL.deviceFd . cDevice
+deviceFd = flip withForeignPtr (fmap Fd . Raw.libevdev_get_fd . ConstPtr) . cDevice
 devicePhys :: Device -> IO (Maybe ByteString)
-devicePhys = join . LL.devicePhys . cDevice
+devicePhys = join . flip withForeignPtr (fmap (packCString' . unConstPtr) . Raw.libevdev_get_phys . ConstPtr) . cDevice
 deviceUniq :: Device -> IO (Maybe ByteString)
-deviceUniq = join . LL.deviceUniq . cDevice
+deviceUniq = join . flip withForeignPtr (fmap (packCString' . unConstPtr) . Raw.libevdev_get_uniq . ConstPtr) . cDevice
 deviceProduct :: Device -> IO Int
-deviceProduct = LL.deviceProduct . cDevice
+deviceProduct = flip withForeignPtr (fmap fromIntegral . Raw.libevdev_get_id_product . ConstPtr) . cDevice
 deviceVendor :: Device -> IO Int
-deviceVendor = LL.deviceVendor . cDevice
+deviceVendor = flip withForeignPtr (fmap fromIntegral . Raw.libevdev_get_id_vendor . ConstPtr) . cDevice
 deviceBustype :: Device -> IO Int
-deviceBustype = LL.deviceBustype . cDevice
+deviceBustype = flip withForeignPtr (fmap fromIntegral . Raw.libevdev_get_id_bustype . ConstPtr) . cDevice
 deviceVersion :: Device -> IO Int
-deviceVersion = LL.deviceVersion . cDevice
+deviceVersion = flip withForeignPtr (fmap fromIntegral . Raw.libevdev_get_id_version . ConstPtr) . cDevice
 
 deviceProperties :: Device -> IO [DeviceProperty]
-deviceProperties dev = filterM (LL.hasProperty $ cDevice dev) enumerate
+deviceProperties (Device dev _) = enumerate & filterM \prop -> withForeignPtr dev \p ->
+    toBool <$> Raw.libevdev_has_property (ConstPtr p) (fromEnum' prop)
 
 deviceEventTypes :: Device -> IO [EventType]
-deviceEventTypes dev = filterM (LL.hasEventType $ cDevice dev) enumerate
+deviceEventTypes (Device dev _) = enumerate & filterM \et -> withForeignPtr dev \p ->
+    toBool <$> Raw.libevdev_has_event_type (ConstPtr p) (fromEnum' et)
 
 --TODO this is an imperfect API since '_val' is ignored entirely
 deviceHasEvent :: Device -> EventData -> IO Bool
-deviceHasEvent dev e = LL.hasEventCode (cDevice dev) typ code
-  where (typ,code,_val) = toCEventData e
+deviceHasEvent (Device dev _) e = withForeignPtr dev \p ->
+    toBool <$> Raw.libevdev_has_event_code (ConstPtr p) (fromIntegral t) (fromIntegral c)
+  where
+    (t, c, _v) = toCEventData e
 
 data AbsInfo = AbsInfo
     { absValue :: Int32
@@ -314,7 +322,7 @@ data LEDValue = LedOn | LedOff
 
 -- | Set the state of a LED on a device.
 setDeviceLED :: Device -> LEDEvent -> LEDValue -> IO ()
-setDeviceLED dev led val = cErrCall "setDeviceLED" dev $ withForeignPtr (cDevice dev) \devPtr ->
+setDeviceLED dev led val = cErrCallDev "setDeviceLED" dev $ withForeignPtr (cDevice dev) \devPtr ->
     Errno <$> Raw.libevdev_kernel_set_led_value devPtr (fromEnum' led) case val of
         LedOn -> Raw.LIBEVDEV_LED_ON
         LedOff -> Raw.LIBEVDEV_LED_OFF
@@ -322,7 +330,7 @@ setDeviceLED dev led val = cErrCall "setDeviceLED" dev $ withForeignPtr (cDevice
 {- Util -}
 
 grabDevice' :: Raw.Libevdev_grab_mode -> Device -> IO ()
-grabDevice' mode dev = cErrCall "grabDevice" dev $
+grabDevice' mode dev = cErrCallDev "grabDevice" dev $
     withForeignPtr (cDevice dev) $ fmap Errno . flip Raw.libevdev_grab mode
 
 {-
@@ -347,5 +355,5 @@ toEnum' = (enumMap !?)
     enumMap :: Map k a
     enumMap = Map.fromList $ map (toEnum . fromEnum &&& id) enumerate
 
-instance CErrInfo Device where
-    cErrInfo = return . Just . devicePath
+cErrCallDev :: CErrCall a => String -> Device -> IO a -> IO (CErrCallRes a)
+cErrCallDev f = cErrCall f . return . Just . devicePath
