@@ -2,10 +2,9 @@ module Evdev.LowLevel where
 
 import Data.ByteString (ByteString, packCString, useAsCString)
 import Data.Int (Int32)
-import Data.Void (Void)
-import Data.Word (Word16, Word32)
-import Foreign (ForeignPtr, FunPtr, Ptr, castPtr, mallocBytes, mallocForeignPtrBytes, newForeignPtr, newForeignPtr_, nullPtr, peek, poke, withForeignPtr)
-import Foreign.C (CInt (..), CString, CUInt (..))
+import Data.Word (Word16)
+import Foreign (ForeignPtr, FunPtr, Ptr, castPtr, mallocForeignPtrBytes, newForeignPtr, nullPtr, peek, withForeignPtr)
+import Foreign.C (CString)
 import Foreign.C.ConstPtr (ConstPtr (..))
 import Foreign.C.Error (Errno (Errno))
 import Foreign.Storable (sizeOf)
@@ -27,18 +26,6 @@ withUDevice (UDevice fp) = withForeignPtr fp
 
 foreign import ccall "&libevdev_hs_close" finalizer_libevdev_hs_close :: FunPtr (Ptr Raw.Libevdev -> IO ())
 foreign import ccall "&libevdev_uinput_destroy" finalizer_libevdev_uinput_destroy :: FunPtr (Ptr Raw.Libevdev_uinput -> IO ())
-
--- * Data types
-
-data AbsInfo = AbsInfo
-    { absValue :: Int32
-    , absMinimum :: Int32
-    , absMaximum :: Int32
-    , absFuzz :: Int32
-    , absFlat :: Int32
-    , absResolution :: Int32
-    }
-    deriving (Show)
 
 -- * Device lifecycle
 
@@ -138,39 +125,6 @@ hasEventType dev et = withDevice dev $ \devPtr ->
 hasEventCode :: Device -> Word16 -> Word16 -> IO Bool
 hasEventCode dev t c = withDevice dev $ \devPtr ->
     (/= 0) <$> Raw.libevdev_has_event_code (ConstPtr devPtr) (fromIntegral t) (fromIntegral c)
-
--- * Abs info
-
-getAbsInfo :: Device -> Word32 -> IO (Maybe AbsInfo)
-getAbsInfo dev code = withDevice dev \devPtr -> do
-    (unConstPtr <$> Raw.libevdev_get_abs_info (ConstPtr devPtr) (CUInt code))
-        >>= handleNull (pure Nothing) \absInfoPtr -> do
-            Raw.Input_absinfo
-                { value = Raw.C__S32 (CInt absValue)
-                , minimum = Raw.C__S32 (CInt absMinimum)
-                , maximum = Raw.C__S32 (CInt absMaximum)
-                , fuzz = Raw.C__S32 (CInt absFuzz)
-                , flat = Raw.C__S32 (CInt absFlat)
-                , resolution = Raw.C__S32 (CInt absResolution)
-                } <-
-                peek absInfoPtr
-            pure $ Just AbsInfo{..}
-
-withAbsInfo :: AbsInfo -> (Ptr Void -> IO a) -> IO a
-withAbsInfo AbsInfo{..} f = do
-    let info =
-            Raw.Input_absinfo
-                { value = Raw.C__S32 (CInt absValue)
-                , minimum = Raw.C__S32 (CInt absMinimum)
-                , maximum = Raw.C__S32 (CInt absMaximum)
-                , fuzz = Raw.C__S32 (CInt absFuzz)
-                , flat = Raw.C__S32 (CInt absFlat)
-                , resolution = Raw.C__S32 (CInt absResolution)
-                }
-    p <- mallocBytes (sizeOf info)
-    poke (castPtr p) info
-    fp <- newForeignPtr_ p
-    withForeignPtr fp f
 
 -- * Uinput
 

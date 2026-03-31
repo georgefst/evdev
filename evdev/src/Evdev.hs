@@ -23,7 +23,7 @@ module Evdev (
     deviceBustype,
     deviceVersion,
     deviceAbsAxis,
-    LL.AbsInfo (..),
+    AbsInfo (..),
     -- ** Grabbing
     grabDevice,
     ungrabDevice,
@@ -57,6 +57,7 @@ import Control.Arrow ((&&&))
 import Control.Monad (filterM, join)
 import Data.ByteString.Char8 (ByteString, pack)
 import Data.Coerce (coerce)
+import Data.Functor ((<&>))
 import Data.Int (Int32)
 import Data.List.Extra (enumerate)
 import Data.Map ((!?), Map)
@@ -68,8 +69,9 @@ import qualified Data.Set as Set
 import Data.Time.Clock (DiffTime)
 import Data.Tuple.Extra (uncurry3)
 import Data.Word (Word16)
-import Foreign (alloca, peek, (.|.))
-import Foreign.C (CInt (CInt), CUInt, CUShort (CUShort), Errno (Errno), eAGAIN, eOK)
+import Foreign (alloca, (.|.), peek)
+import Foreign.C (CInt (CInt), CUInt (CUInt), CUShort (CUShort), Errno (Errno), eAGAIN, eOK)
+import Foreign.C.ConstPtr (ConstPtr (ConstPtr), unConstPtr)
 import System.Posix.Process (getProcessID)
 import System.Posix.Files (readSymbolicLink)
 import System.Posix.ByteString (Fd, RawFilePath)
@@ -282,8 +284,30 @@ deviceHasEvent :: Device -> EventData -> IO Bool
 deviceHasEvent dev e = LL.hasEventCode (cDevice dev) typ code
   where (typ,code,_val) = toCEventData e
 
-deviceAbsAxis :: Device -> AbsoluteAxis -> IO (Maybe LL.AbsInfo)
-deviceAbsAxis dev = LL.getAbsInfo (cDevice dev) . fromEnum'
+data AbsInfo = AbsInfo
+    { absValue :: Int32
+    , absMinimum :: Int32
+    , absMaximum :: Int32
+    , absFuzz :: Int32
+    , absFlat :: Int32
+    , absResolution :: Int32
+    }
+    deriving (Show)
+
+deviceAbsAxis :: Device -> AbsoluteAxis -> IO (Maybe AbsInfo)
+deviceAbsAxis dev (fromEnum' -> code) = LL.withDevice (cDevice dev) \devPtr ->
+    (unConstPtr <$> Raw.libevdev_get_abs_info (ConstPtr devPtr) (CUInt code))
+        >>= LL.handleNull (pure Nothing) \absInfoPtr ->
+            peek absInfoPtr <&> \raw ->
+                Just
+                    AbsInfo
+                        { absValue = coerce raw.value
+                        , absMinimum = coerce raw.minimum
+                        , absMaximum = coerce raw.maximum
+                        , absFuzz = coerce raw.fuzz
+                        , absFlat = coerce raw.flat
+                        , absResolution = coerce raw.resolution
+                        }
 
 data LEDValue = LedOn | LedOff
     deriving (Bounded, Eq, Ord, Read, Show)

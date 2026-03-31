@@ -24,12 +24,14 @@ module Evdev.Uinput (
 import Control.Monad
 import Control.Monad.State
 import Data.Foldable
+import Data.Function
 import Data.Tuple.Extra
 import Foreign
 import Foreign.C
 import Foreign.C.ConstPtr
 
 import Data.ByteString.Char8 (ByteString)
+import Data.Coerce (coerce)
 
 import Evdev hiding (Device, newDevice)
 import Evdev.Codes
@@ -59,16 +61,17 @@ newDevice name DeviceOpts{..} = do
     maybeSet LL.libevdev_set_id_bustype idBustype
     maybeSet LL.libevdev_set_id_version idVersion
 
-    let enable dataPtr t cs = do
+    let enable (dataPtr :: Maybe (Either (Ptr Raw.Input_absinfo) (Ptr Int))) t cs = do
             unless (null cs) $ cec $ LL.withDevice dev \devPtr ->
                 Errno <$> Raw.libevdev_enable_event_type devPtr t'
             forM_ cs $ \c -> cec $ LL.withDevice dev \devPtr ->
-                Errno <$> Raw.libevdev_enable_event_code devPtr t' c (ConstPtr dataPtr)
+                Errno <$> Raw.libevdev_enable_event_code devPtr t' c
+                    (ConstPtr $ maybe nullPtr (either castPtr castPtr) dataPtr)
           where
             t' = fromEnum' t
 
     mapM_
-        (uncurry $ enable nullPtr)
+        (uncurry $ enable Nothing)
         [ (EvKey, map fromEnum' keys)
         , (EvRel, map fromEnum' relAxes)
         , (EvMsc, map fromEnum' miscs)
@@ -80,15 +83,19 @@ newDevice name DeviceOpts{..} = do
         , (EvFfStatus, map fromEnum' ffStats)
         ]
 
-    forM_ reps $ \(rep, n) -> do
-        pf <- mallocForeignPtr
-        withForeignPtr pf \p -> do
-            poke p n
-            enable (castPtr p) EvRep [fromEnum' rep]
+    forM_ reps \(rep, n) -> with n \p ->
+        enable (Just $ Right p) EvRep [fromEnum' rep]
 
-    forM_ absAxes $ \(axis, absInfo) ->
-        LL.withAbsInfo absInfo $ \ptr ->
-            enable ptr EvAbs [fromEnum' axis]
+    forM_ absAxes \(axis, AbsInfo{..}) ->
+        Raw.Input_absinfo
+            { value = coerce absValue
+            , minimum = coerce absMinimum
+            , maximum = coerce absMaximum
+            , fuzz = coerce absFuzz
+            , flat = coerce absFlat
+            , resolution = coerce absResolution
+            }
+            & flip with \ptr -> enable (Just $ Left ptr) EvAbs [fromEnum' axis]
 
     fmap Device $ cec $ LL.createFromDevice dev $ fromIntegral (Raw.LIBEVDEV_UINPUT_OPEN_MANAGED).unwrap
   where
@@ -104,7 +111,7 @@ data DeviceOpts = DeviceOpts
     , idVersion :: Maybe Int
     , keys :: [Key]
     , relAxes :: [RelativeAxis]
-    , absAxes :: [(AbsoluteAxis, LL.AbsInfo)]
+    , absAxes :: [(AbsoluteAxis, AbsInfo)]
     , miscs :: [MiscEvent]
     , switchs :: [SwitchEvent]
     , leds :: [LEDEvent]
