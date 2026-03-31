@@ -32,6 +32,7 @@ smoke = testCase "Smoke" do
     let duName = "evdev-test-device"
         keys = [Key1 .. Key0]
         evs = concatMap ((<$> [Pressed, Released]) . KeyEvent) keys
+    assertEqual "10 keys" 10 $ length keys
     du <- Uinput.newDevice duName Uinput.defaultDeviceOpts{Uinput.keys}
     void $ forkIO do
         takeMVar start -- wait until reading device is initialised
