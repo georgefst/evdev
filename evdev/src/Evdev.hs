@@ -248,7 +248,7 @@ __WARNING__: Don't attempt to reuse the 'Fd' - it will be closed when the 'Devic
 newDeviceFromFd :: Fd -> IO Device
 newDeviceFromFd fd = do
     dev <- cErrCall "newDeviceFromFd" mempty do
-        dev <- newForeignPtr Raw.finalizer_libevdev_hs_close =<< Raw.libevdev_new
+        dev <- newForeignPtr Raw.libevdev_hs_close =<< Raw.libevdev_new
         err <- withForeignPtr dev $ fmap Errno . flip Raw.libevdev_set_fd (coerce fd)
         pure (err, dev)
     pid <- getProcessID

@@ -48,7 +48,7 @@ newDevice ::
     DeviceOpts ->
     IO Device
 newDevice name DeviceOpts{..} = do
-    dev <- newForeignPtr Raw.finalizer_libevdev_hs_close =<< Raw.libevdev_new
+    dev <- newForeignPtr Raw.libevdev_hs_close =<< Raw.libevdev_new
     withForeignPtr dev \p -> useAsCString name $ Raw.libevdev_set_name p . ConstPtr
 
     for_ phys \x -> withForeignPtr dev \p -> useAsCString x $ Raw.libevdev_set_phys p . ConstPtr
