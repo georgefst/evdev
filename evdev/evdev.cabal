@@ -51,9 +51,9 @@ library
         Evdev
         Evdev.Codes
         Evdev.Uinput
-    other-modules:
         Evdev.LowLevel
         Evdev.Raw
+    other-modules:
         Util
     hs-source-dirs: src
     c-sources:
