@@ -10,8 +10,7 @@ import Foreign.C.Error (Errno (Errno), eAGAIN, eOK)
 import Foreign.Storable (sizeOf)
 import System.Posix.Types (Fd (Fd))
 
-import Evdev.Codes (DeviceProperty, EventType, LEDEvent)
-import Evdev.Raw (C__S32 (..), C__Suseconds_t (..), C__Time_t (..), C__U16 (..), Input_absinfo (..), Input_event (..), Libevdev, Libevdev_uinput, Timeval (..))
+import Evdev.Codes
 import Evdev.Raw qualified as Raw
 
 -- * Enums
@@ -74,17 +73,17 @@ ledValueToRaw = \case
 
 -- * Opaque device types
 
-newtype Device = Device (ForeignPtr Libevdev)
-newtype UDevice = UDevice (ForeignPtr Libevdev_uinput)
+newtype Device = Device (ForeignPtr Raw.Libevdev)
+newtype UDevice = UDevice (ForeignPtr Raw.Libevdev_uinput)
 
-withDevice :: Device -> (Ptr Libevdev -> IO a) -> IO a
+withDevice :: Device -> (Ptr Raw.Libevdev -> IO a) -> IO a
 withDevice (Device fp) = withForeignPtr fp
 
-withUDevice :: UDevice -> (Ptr Libevdev_uinput -> IO a) -> IO a
+withUDevice :: UDevice -> (Ptr Raw.Libevdev_uinput -> IO a) -> IO a
 withUDevice (UDevice fp) = withForeignPtr fp
 
-foreign import ccall "&libevdev_hs_close" finalizer_libevdev_hs_close :: FunPtr (Ptr Libevdev -> IO ())
-foreign import ccall "&libevdev_uinput_destroy" finalizer_libevdev_uinput_destroy :: FunPtr (Ptr Libevdev_uinput -> IO ())
+foreign import ccall "&libevdev_hs_close" finalizer_libevdev_hs_close :: FunPtr (Ptr Raw.Libevdev -> IO ())
+foreign import ccall "&libevdev_uinput_destroy" finalizer_libevdev_uinput_destroy :: FunPtr (Ptr Raw.Libevdev_uinput -> IO ())
 
 -- | Convert a Ptr to a ConstPtr (for calling const-qualified C functions)
 constPtr :: Ptr a -> ConstPtr a
@@ -141,7 +140,7 @@ newDeviceFromFd fd = do
 -- * Events
 
 inputEventSize :: Int
-inputEventSize = sizeOf (undefined :: Input_event)
+inputEventSize = sizeOf (undefined :: Raw.Input_event)
 
 nextEvent :: Device -> CUInt -> IO (Errno, CEvent)
 nextEvent dev flags = withDevice dev $ \devPtr ->
@@ -164,15 +163,15 @@ nextEventMay dev flags = withDevice dev $ \devPtr ->
                 ev <- getEvent evPtr
                 pure (eOK, Just ev)
 
-getEvent :: Ptr Input_event -> IO CEvent
+getEvent :: Ptr Raw.Input_event -> IO CEvent
 getEvent evPtr = do
-    Input_event{time, type', code, value} <- peek evPtr
-    let C__U16 (CUShort t) = type'
-        C__U16 (CUShort c) = code
-        C__S32 (CInt v) = value
-        Timeval{tv_sec, tv_usec} = time
-        C__Time_t (CLong sec) = tv_sec
-        C__Suseconds_t (CLong usec) = tv_usec
+    Raw.Input_event{time, type', code, value} <- peek evPtr
+    let Raw.C__U16 (CUShort t) = type'
+        Raw.C__U16 (CUShort c) = code
+        Raw.C__S32 (CInt v) = value
+        Raw.Timeval{tv_sec, tv_usec} = time
+        Raw.C__Time_t (CLong sec) = tv_sec
+        Raw.C__Suseconds_t (CLong usec) = tv_usec
     pure $
         CEvent
             { cEventType = fromIntegral t
@@ -273,17 +272,17 @@ hasEventCode dev t c = withDevice dev $ \devPtr ->
 getAbsInfo :: Device -> Word32 -> IO (Maybe AbsInfo)
 getAbsInfo dev code = withDevice dev $ \devPtr -> do
     ptr <- Raw.libevdev_get_abs_info (constPtr devPtr) (CUInt code)
-    let rawPtr = unConstPtr' ptr :: Ptr Input_absinfo
+    let rawPtr = unConstPtr' ptr :: Ptr Raw.Input_absinfo
     if rawPtr == nullPtr
         then pure Nothing
         else do
-            Input_absinfo
-                { value = C__S32 (CInt v)
-                , minimum = C__S32 (CInt mn)
-                , maximum = C__S32 (CInt mx)
-                , fuzz = C__S32 (CInt fz)
-                , flat = C__S32 (CInt fl)
-                , resolution = C__S32 (CInt res)
+            Raw.Input_absinfo
+                { value = Raw.C__S32 (CInt v)
+                , minimum = Raw.C__S32 (CInt mn)
+                , maximum = Raw.C__S32 (CInt mx)
+                , fuzz = Raw.C__S32 (CInt fz)
+                , flat = Raw.C__S32 (CInt fl)
+                , resolution = Raw.C__S32 (CInt res)
                 } <-
                 peek rawPtr
             pure $
@@ -300,13 +299,13 @@ getAbsInfo dev code = withDevice dev $ \devPtr -> do
 withAbsInfo :: AbsInfo -> (Ptr () -> IO a) -> IO a
 withAbsInfo AbsInfo{..} f = do
     let info =
-            Input_absinfo
-                { value = C__S32 (CInt absValue)
-                , minimum = C__S32 (CInt absMinimum)
-                , maximum = C__S32 (CInt absMaximum)
-                , fuzz = C__S32 (CInt absFuzz)
-                , flat = C__S32 (CInt absFlat)
-                , resolution = C__S32 (CInt absResolution)
+            Raw.Input_absinfo
+                { value = Raw.C__S32 (CInt absValue)
+                , minimum = Raw.C__S32 (CInt absMinimum)
+                , maximum = Raw.C__S32 (CInt absMaximum)
+                , fuzz = Raw.C__S32 (CInt absFuzz)
+                , flat = Raw.C__S32 (CInt absFlat)
+                , resolution = Raw.C__S32 (CInt absResolution)
                 }
     p <- mallocBytes (sizeOf info)
     poke (castPtr p) info
