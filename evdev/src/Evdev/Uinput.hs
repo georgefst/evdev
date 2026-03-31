@@ -58,7 +58,7 @@ newDevice name DeviceOpts{..} = do
     for_ idBustype \x -> withForeignPtr dev \p -> Raw.libevdev_set_id_bustype p $ fromIntegral x
     for_ idVersion \x -> withForeignPtr dev \p -> Raw.libevdev_set_id_version p $ fromIntegral x
 
-    let enable (dataPtr :: Maybe (Either (Ptr Raw.Input_absinfo) (Ptr Int))) t cs = do
+    let enable (dataPtr :: Maybe (Either (Ptr Raw.Input_absinfo) (Ptr CInt))) t cs = do
             unless (null cs) $ cec $ withForeignPtr dev \devPtr ->
                 Errno <$> Raw.libevdev_enable_event_type devPtr t'
             forM_ cs $ \c -> cec $ withForeignPtr dev \devPtr ->
@@ -80,7 +80,7 @@ newDevice name DeviceOpts{..} = do
         , (EvFfStatus, map fromEnum' ffStats)
         ]
 
-    forM_ reps \(rep, n) -> with n \p ->
+    forM_ reps \(rep, n) -> with (fromIntegral n) \p ->
         enable (Just $ Right p) EvRep [fromEnum' rep]
 
     forM_ absAxes \(axis, AbsInfo{..}) ->
