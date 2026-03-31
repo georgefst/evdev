@@ -26,6 +26,8 @@ import Control.Monad.State
 import Data.Foldable
 import Data.Tuple.Extra
 import Foreign
+import Foreign.C
+import Foreign.C.ConstPtr
 
 import Data.ByteString.Char8 (ByteString)
 
@@ -57,10 +59,11 @@ newDevice name DeviceOpts{..} = do
     maybeSet LL.libevdev_set_id_bustype idBustype
     maybeSet LL.libevdev_set_id_version idVersion
 
-    let enable :: Ptr () -> EventType -> [Word16] -> IO ()
-        enable ptr t cs = do
-            unless (null cs) $ cec $ LL.enableType dev t'
-            forM_ cs $ \c -> cec $ LL.enableCode dev t' c ptr
+    let enable dataPtr t cs = do
+            unless (null cs) $ cec $ LL.withDevice dev \devPtr ->
+                Errno <$> Raw.libevdev_enable_event_type devPtr t'
+            forM_ cs $ \c -> cec $ LL.withDevice dev \devPtr ->
+                Errno <$> Raw.libevdev_enable_event_code devPtr t' c (ConstPtr dataPtr)
           where
             t' = fromEnum' t
 

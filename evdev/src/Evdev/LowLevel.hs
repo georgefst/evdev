@@ -2,6 +2,7 @@ module Evdev.LowLevel where
 
 import Data.ByteString (ByteString, packCString, useAsCString)
 import Data.Int (Int32, Int64)
+import Data.Void (Void)
 import Data.Word (Word16, Word32)
 import Foreign (ForeignPtr, FunPtr, Ptr, allocaBytes, castPtr, mallocBytes, mallocForeignPtrBytes, newForeignPtr, newForeignPtr_, nullPtr, peek, poke, withForeignPtr)
 import Foreign.C (CInt (..), CLong (..), CString, CUInt (..), CUShort (..))
@@ -212,7 +213,7 @@ getAbsInfo dev code = withDevice dev \devPtr -> do
                 peek absInfoPtr
             pure $ Just AbsInfo{..}
 
-withAbsInfo :: AbsInfo -> (Ptr () -> IO a) -> IO a
+withAbsInfo :: AbsInfo -> (Ptr Void -> IO a) -> IO a
 withAbsInfo AbsInfo{..} f = do
     let info =
             Raw.Input_absinfo
@@ -227,16 +228,6 @@ withAbsInfo AbsInfo{..} f = do
     poke (castPtr p) info
     fp <- newForeignPtr_ p
     withForeignPtr fp f
-
--- * Event enabling
-
-enableType :: Device -> Word16 -> IO Errno
-enableType dev t = withDevice dev $ \devPtr ->
-    Errno <$> Raw.libevdev_enable_event_type devPtr (fromIntegral t)
-
-enableCode :: Device -> Word16 -> Word16 -> Ptr () -> IO Errno
-enableCode dev t c dataPtr = withDevice dev $ \devPtr ->
-    Errno <$> Raw.libevdev_enable_event_code devPtr (fromIntegral t) (fromIntegral c) (ConstPtr $ castPtr dataPtr)
 
 -- * Uinput
 
