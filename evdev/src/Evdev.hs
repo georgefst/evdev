@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# OPTIONS_GHC -fno-state-hack #-}
 
 -- | The main module for working with devices and events.
@@ -36,7 +37,7 @@ module Evdev (
     -- * Lower-level
     newDeviceFromFd,
     nextEventMay,
-    LL.LEDValue(..),
+    LEDValue(..),
     setDeviceLED,
     -- ** C-style types
     -- | These correspond more directly to C's /input_event/ and /timeval/.
@@ -66,13 +67,14 @@ import Data.Time.Clock (DiffTime)
 import Data.Tuple.Extra (uncurry3)
 import Data.Word (Word16)
 import Foreign ((.|.))
-import Foreign.C (CUInt)
+import Foreign.C (CUInt, Errno (Errno))
 import System.Posix.Process (getProcessID)
 import System.Posix.Files (readSymbolicLink)
 import System.Posix.ByteString (Fd, RawFilePath)
 import System.Posix.IO.ByteString (OpenMode (..), defaultFileFlags, openFd)
 
 import qualified Evdev.LowLevel as LL
+import qualified Evdev.Raw as Raw
 import Evdev.Codes
 import Util
 
@@ -126,21 +128,30 @@ data KeyEvent
     | Repeated
     deriving (Bounded, Enum, Eq, Ord, Read, Show)
 
-convertFlags :: Set LL.ReadFlag -> CUInt
-convertFlags = fromIntegral . foldr ((.|.) . fromEnum) 0
+data ReadFlag = Sync | Normal | ForceSync | Blocking
+    deriving (Eq, Ord, Show)
 
-defaultReadFlags :: Set LL.ReadFlag
-defaultReadFlags = Set.fromList [LL.Normal, LL.Blocking]
+convertFlags :: Set ReadFlag -> CUInt
+convertFlags = foldr ((.|.) . (.unwrap) . convert) 0
+  where
+    convert = \case
+        Sync -> Raw.LIBEVDEV_READ_FLAG_SYNC
+        Normal -> Raw.LIBEVDEV_READ_FLAG_NORMAL
+        ForceSync -> Raw.LIBEVDEV_READ_FLAG_FORCE_SYNC
+        Blocking -> Raw.LIBEVDEV_READ_FLAG_BLOCKING
 
-nonBlockingReadFlags :: Set LL.ReadFlag
-nonBlockingReadFlags = Set.fromList [LL.Normal]
+defaultReadFlags :: Set ReadFlag
+defaultReadFlags = Set.fromList [Normal, Blocking]
+
+nonBlockingReadFlags :: Set ReadFlag
+nonBlockingReadFlags = Set.fromList [Normal]
 
 -- | Prevent other clients (including kernel-internal ones) from receiving events. Often a bad idea.
 grabDevice :: Device -> IO ()
-grabDevice = grabDevice' LL.LibevdevGrab
+grabDevice = grabDevice' Raw.LIBEVDEV_GRAB
 -- | Release a grabbed device.
 ungrabDevice :: Device -> IO ()
-ungrabDevice = grabDevice' LL.LibevdevUngrab
+ungrabDevice = grabDevice' Raw.LIBEVDEV_UNGRAB
 
 -- | Get the next event from the device.
 nextEvent :: Device -> IO Event
@@ -258,15 +269,21 @@ deviceHasEvent dev e = LL.hasEventCode (cDevice dev) typ code
 deviceAbsAxis :: Device -> AbsoluteAxis -> IO (Maybe LL.AbsInfo)
 deviceAbsAxis dev = LL.getAbsInfo (cDevice dev) . fromEnum'
 
+data LEDValue = LedOn | LedOff
+    deriving (Bounded, Eq, Ord, Read, Show)
+
 -- | Set the state of a LED on a device.
-setDeviceLED :: Device -> LEDEvent -> LL.LEDValue -> IO ()
-setDeviceLED dev led val = cErrCall "setDeviceLED" dev (LL.libevdev_kernel_set_led_value (cDevice dev) led val)
+setDeviceLED :: Device -> LEDEvent -> LEDValue -> IO ()
+setDeviceLED dev led val = cErrCall "setDeviceLED" dev $ LL.withDevice (cDevice dev) \devPtr ->
+    Errno <$> Raw.libevdev_kernel_set_led_value devPtr (LL.convertEnum led) case val of
+        LedOn -> Raw.LIBEVDEV_LED_ON
+        LedOff -> Raw.LIBEVDEV_LED_OFF
 
 {- Util -}
 
-grabDevice' :: LL.GrabMode -> Device -> IO ()
+grabDevice' :: Raw.Libevdev_grab_mode -> Device -> IO ()
 grabDevice' mode dev = cErrCall "grabDevice" dev $
-    LL.grabDevice (cDevice dev) mode
+    LL.withDevice (cDevice dev) $ fmap Errno . flip Raw.libevdev_grab mode
 
 {-
 TODO this is a workaround until c2hs has a better story for enum conversions

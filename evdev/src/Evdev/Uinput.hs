@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedRecordDot #-}
+
 -- | Create virtual input devices.
 module Evdev.Uinput (
     Device,
@@ -30,6 +32,7 @@ import Data.ByteString.Char8 (ByteString)
 import Evdev hiding (Device, newDevice)
 import Evdev.Codes
 import qualified Evdev.LowLevel as LL
+import qualified Evdev.Raw as Raw
 import Util
 
 -- | A `uinput` device.
@@ -84,7 +87,7 @@ newDevice name DeviceOpts{..} = do
         LL.withAbsInfo absInfo $ \ptr ->
             enable ptr EvAbs [fromEnum' axis]
 
-    fmap Device $ cec $ LL.createFromDevice dev $ fromEnum' LL.UOMManaged
+    fmap Device $ cec $ LL.createFromDevice dev $ fromIntegral (Raw.LIBEVDEV_UINPUT_OPEN_MANAGED).unwrap
   where
     cec :: CErrCall a => IO a -> IO (CErrCallRes a)
     cec = cErrCall "newDevice" ()

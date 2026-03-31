@@ -13,64 +13,6 @@ import System.Posix.Types (Fd (Fd))
 import Evdev.Codes
 import Evdev.Raw qualified as Raw
 
--- * Enums
-
--- | Extract an Int from an hs-bindgen enum newtype
-rawEnum :: (Integral a) => a -> Int
-rawEnum = fromIntegral
-
-data ReadFlag = Sync | Normal | ForceSync | Blocking
-    deriving (Eq, Ord, Show)
-instance Enum ReadFlag where
-    fromEnum Sync = let Raw.Libevdev_read_flag n = Raw.LIBEVDEV_READ_FLAG_SYNC in rawEnum n
-    fromEnum Normal = let Raw.Libevdev_read_flag n = Raw.LIBEVDEV_READ_FLAG_NORMAL in rawEnum n
-    fromEnum ForceSync = let Raw.Libevdev_read_flag n = Raw.LIBEVDEV_READ_FLAG_FORCE_SYNC in rawEnum n
-    fromEnum Blocking = let Raw.Libevdev_read_flag n = Raw.LIBEVDEV_READ_FLAG_BLOCKING in rawEnum n
-    toEnum n
-        | n == fromEnum Sync = Sync
-        | n == fromEnum Normal = Normal
-        | n == fromEnum ForceSync = ForceSync
-        | n == fromEnum Blocking = Blocking
-        | otherwise = error $ "ReadFlag.toEnum: Cannot match " ++ show n
-
-data GrabMode = LibevdevGrab | LibevdevUngrab
-    deriving (Show)
-instance Enum GrabMode where
-    fromEnum LibevdevGrab = let Raw.Libevdev_grab_mode n = Raw.LIBEVDEV_GRAB in rawEnum n
-    fromEnum LibevdevUngrab = let Raw.Libevdev_grab_mode n = Raw.LIBEVDEV_UNGRAB in rawEnum n
-    toEnum n
-        | n == fromEnum LibevdevGrab = LibevdevGrab
-        | n == fromEnum LibevdevUngrab = LibevdevUngrab
-        | otherwise = error $ "GrabMode.toEnum: Cannot match " ++ show n
-
-data LEDValue = LedOn | LedOff
-    deriving (Bounded, Eq, Ord, Read, Show)
-instance Enum LEDValue where
-    fromEnum LedOn = let Raw.Libevdev_led_value n = Raw.LIBEVDEV_LED_ON in rawEnum n
-    fromEnum LedOff = let Raw.Libevdev_led_value n = Raw.LIBEVDEV_LED_OFF in rawEnum n
-    toEnum n
-        | n == fromEnum LedOn = LedOn
-        | n == fromEnum LedOff = LedOff
-        | otherwise = error $ "LEDValue.toEnum: Cannot match " ++ show n
-
-data UInputOpenMode = UOMManaged
-    deriving (Show)
-instance Enum UInputOpenMode where
-    fromEnum UOMManaged = let Raw.Libevdev_uinput_open_mode n = Raw.LIBEVDEV_UINPUT_OPEN_MANAGED in rawEnum n
-    toEnum n
-        | n == fromEnum UOMManaged = UOMManaged
-        | otherwise = error $ "UInputOpenMode.toEnum: Cannot match " ++ show n
-
-grabModeToRaw :: GrabMode -> Raw.Libevdev_grab_mode
-grabModeToRaw = \case
-    LibevdevGrab -> Raw.LIBEVDEV_GRAB
-    LibevdevUngrab -> Raw.LIBEVDEV_UNGRAB
-
-ledValueToRaw :: LEDValue -> Raw.Libevdev_led_value
-ledValueToRaw = \case
-    LedOn -> Raw.LIBEVDEV_LED_ON
-    LedOff -> Raw.LIBEVDEV_LED_OFF
-
 -- * Opaque device types
 
 newtype Device = Device (ForeignPtr Raw.Libevdev)
@@ -179,12 +121,6 @@ getEvent evPtr = do
             , cEventValue = fromIntegral v
             , cEventTime = CTimeVal (fromIntegral sec) (fromIntegral usec)
             }
-
--- * Grabbing
-
-grabDevice :: Device -> GrabMode -> IO Errno
-grabDevice dev mode = withDevice dev $ \devPtr ->
-    Errno <$> Raw.libevdev_grab devPtr (grabModeToRaw mode)
 
 -- * Device properties (getters)
 
@@ -343,12 +279,6 @@ getDevnode dev = withUDevice dev $ \devPtr ->
 writeEvent :: UDevice -> Word16 -> Word16 -> Int32 -> IO Errno
 writeEvent dev t c v = withUDevice dev $ \devPtr ->
     Errno <$> Raw.libevdev_uinput_write_event (constPtr devPtr) (fromIntegral t) (fromIntegral c) (fromIntegral v)
-
--- * LEDs
-
-libevdev_kernel_set_led_value :: Device -> LEDEvent -> LEDValue -> IO Errno
-libevdev_kernel_set_led_value dev led val = withDevice dev $ \devPtr ->
-    Errno <$> Raw.libevdev_kernel_set_led_value devPtr (convertEnum led) (ledValueToRaw val)
 
 -- * Util
 
