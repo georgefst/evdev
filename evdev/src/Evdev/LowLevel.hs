@@ -4,53 +4,53 @@ import Data.ByteString (ByteString, packCString, useAsCString)
 import Data.Int (Int32, Int64)
 import Data.Word (Word16, Word32)
 import Foreign (ForeignPtr, FunPtr, Ptr, allocaBytes, castPtr, mallocBytes, mallocForeignPtrBytes, newForeignPtr, newForeignPtr_, nullPtr, peek, poke, withForeignPtr)
-import Foreign.C (CInt(..), CLong(..), CUInt(..), CUShort(..), CString)
-import Foreign.C.ConstPtr (ConstPtr(..))
-import Foreign.C.Error (Errno(Errno), eOK, eAGAIN)
+import Foreign.C (CInt (..), CLong (..), CString, CUInt (..), CUShort (..))
+import Foreign.C.ConstPtr (ConstPtr (..))
+import Foreign.C.Error (Errno (Errno), eAGAIN, eOK)
 import Foreign.Storable (sizeOf)
-import System.Posix.Types (Fd(Fd))
+import System.Posix.Types (Fd (Fd))
 
-import Evdev.Raw (Libevdev, Libevdev_uinput, Input_event(..), Input_absinfo(..), Timeval(..), C__U16(..), C__S32(..), C__Time_t(..), C__Suseconds_t(..))
-import qualified Evdev.Raw as Raw
 import Evdev.Codes (DeviceProperty, EventType, LEDEvent)
+import Evdev.Raw (C__S32 (..), C__Suseconds_t (..), C__Time_t (..), C__U16 (..), Input_absinfo (..), Input_event (..), Libevdev, Libevdev_uinput, Timeval (..))
+import Evdev.Raw qualified as Raw
 
 -- * Enums
 
 -- | Extract an Int from an hs-bindgen enum newtype
-rawEnum :: Integral a => a -> Int
+rawEnum :: (Integral a) => a -> Int
 rawEnum = fromIntegral
 
 data ReadFlag = Sync | Normal | ForceSync | Blocking
     deriving (Eq, Ord, Show)
 instance Enum ReadFlag where
-    fromEnum Sync      = let Raw.Libevdev_read_flag n = Raw.LIBEVDEV_READ_FLAG_SYNC       in rawEnum n
-    fromEnum Normal    = let Raw.Libevdev_read_flag n = Raw.LIBEVDEV_READ_FLAG_NORMAL      in rawEnum n
-    fromEnum ForceSync = let Raw.Libevdev_read_flag n = Raw.LIBEVDEV_READ_FLAG_FORCE_SYNC  in rawEnum n
-    fromEnum Blocking  = let Raw.Libevdev_read_flag n = Raw.LIBEVDEV_READ_FLAG_BLOCKING    in rawEnum n
+    fromEnum Sync = let Raw.Libevdev_read_flag n = Raw.LIBEVDEV_READ_FLAG_SYNC in rawEnum n
+    fromEnum Normal = let Raw.Libevdev_read_flag n = Raw.LIBEVDEV_READ_FLAG_NORMAL in rawEnum n
+    fromEnum ForceSync = let Raw.Libevdev_read_flag n = Raw.LIBEVDEV_READ_FLAG_FORCE_SYNC in rawEnum n
+    fromEnum Blocking = let Raw.Libevdev_read_flag n = Raw.LIBEVDEV_READ_FLAG_BLOCKING in rawEnum n
     toEnum n
-        | n == fromEnum Sync      = Sync
-        | n == fromEnum Normal    = Normal
+        | n == fromEnum Sync = Sync
+        | n == fromEnum Normal = Normal
         | n == fromEnum ForceSync = ForceSync
-        | n == fromEnum Blocking  = Blocking
+        | n == fromEnum Blocking = Blocking
         | otherwise = error $ "ReadFlag.toEnum: Cannot match " ++ show n
 
 data GrabMode = LibevdevGrab | LibevdevUngrab
     deriving (Show)
 instance Enum GrabMode where
-    fromEnum LibevdevGrab   = let Raw.Libevdev_grab_mode n = Raw.LIBEVDEV_GRAB   in rawEnum n
-    fromEnum LibevdevUngrab = let Raw.Libevdev_grab_mode n = Raw.LIBEVDEV_UNGRAB  in rawEnum n
+    fromEnum LibevdevGrab = let Raw.Libevdev_grab_mode n = Raw.LIBEVDEV_GRAB in rawEnum n
+    fromEnum LibevdevUngrab = let Raw.Libevdev_grab_mode n = Raw.LIBEVDEV_UNGRAB in rawEnum n
     toEnum n
-        | n == fromEnum LibevdevGrab   = LibevdevGrab
+        | n == fromEnum LibevdevGrab = LibevdevGrab
         | n == fromEnum LibevdevUngrab = LibevdevUngrab
         | otherwise = error $ "GrabMode.toEnum: Cannot match " ++ show n
 
 data LEDValue = LedOn | LedOff
     deriving (Bounded, Eq, Ord, Read, Show)
 instance Enum LEDValue where
-    fromEnum LedOn  = let Raw.Libevdev_led_value n = Raw.LIBEVDEV_LED_ON  in rawEnum n
+    fromEnum LedOn = let Raw.Libevdev_led_value n = Raw.LIBEVDEV_LED_ON in rawEnum n
     fromEnum LedOff = let Raw.Libevdev_led_value n = Raw.LIBEVDEV_LED_OFF in rawEnum n
     toEnum n
-        | n == fromEnum LedOn  = LedOn
+        | n == fromEnum LedOn = LedOn
         | n == fromEnum LedOff = LedOff
         | otherwise = error $ "LEDValue.toEnum: Cannot match " ++ show n
 
@@ -64,12 +64,12 @@ instance Enum UInputOpenMode where
 
 grabModeToRaw :: GrabMode -> Raw.Libevdev_grab_mode
 grabModeToRaw = \case
-    LibevdevGrab   -> Raw.LIBEVDEV_GRAB
+    LibevdevGrab -> Raw.LIBEVDEV_GRAB
     LibevdevUngrab -> Raw.LIBEVDEV_UNGRAB
 
 ledValueToRaw :: LEDValue -> Raw.Libevdev_led_value
 ledValueToRaw = \case
-    LedOn  -> Raw.LIBEVDEV_LED_ON
+    LedOn -> Raw.LIBEVDEV_LED_ON
     LedOff -> Raw.LIBEVDEV_LED_OFF
 
 -- * Opaque device types
@@ -155,10 +155,11 @@ nextEventMay dev flags = withDevice dev $ \devPtr ->
     allocaBytes inputEventSize $ \evPtr -> do
         err <- Raw.libevdev_next_event devPtr flags (castPtr evPtr)
         if Errno err /= eOK
-            then pure
-                ( if negateErrno (Errno err) == eAGAIN then eOK else Errno err
-                , Nothing
-                )
+            then
+                pure
+                    ( if negateErrno (Errno err) == eAGAIN then eOK else Errno err
+                    , Nothing
+                    )
             else do
                 ev <- getEvent evPtr
                 pure (eOK, Just ev)
@@ -172,12 +173,13 @@ getEvent evPtr = do
         Timeval{tv_sec, tv_usec} = time
         C__Time_t (CLong sec) = tv_sec
         C__Suseconds_t (CLong usec) = tv_usec
-    pure $ CEvent
-        { cEventType = fromIntegral t
-        , cEventCode = fromIntegral c
-        , cEventValue = fromIntegral v
-        , cEventTime = CTimeVal (fromIntegral sec) (fromIntegral usec)
-        }
+    pure $
+        CEvent
+            { cEventType = fromIntegral t
+            , cEventCode = fromIntegral c
+            , cEventValue = fromIntegral v
+            , cEventTime = CTimeVal (fromIntegral sec) (fromIntegral usec)
+            }
 
 -- * Grabbing
 
@@ -276,32 +278,36 @@ getAbsInfo dev code = withDevice dev $ \devPtr -> do
         then pure Nothing
         else do
             Input_absinfo
-                { value      = C__S32 (CInt v)
-                , minimum    = C__S32 (CInt mn)
-                , maximum    = C__S32 (CInt mx)
-                , fuzz       = C__S32 (CInt fz)
-                , flat       = C__S32 (CInt fl)
+                { value = C__S32 (CInt v)
+                , minimum = C__S32 (CInt mn)
+                , maximum = C__S32 (CInt mx)
+                , fuzz = C__S32 (CInt fz)
+                , flat = C__S32 (CInt fl)
                 , resolution = C__S32 (CInt res)
-                } <- peek rawPtr
-            pure $ Just AbsInfo
-                { absValue = v
-                , absMinimum = mn
-                , absMaximum = mx
-                , absFuzz = fz
-                , absFlat = fl
-                , absResolution = res
-                }
+                } <-
+                peek rawPtr
+            pure $
+                Just
+                    AbsInfo
+                        { absValue = v
+                        , absMinimum = mn
+                        , absMaximum = mx
+                        , absFuzz = fz
+                        , absFlat = fl
+                        , absResolution = res
+                        }
 
 withAbsInfo :: AbsInfo -> (Ptr () -> IO a) -> IO a
 withAbsInfo AbsInfo{..} f = do
-    let info = Input_absinfo
-            { value      = C__S32 (CInt absValue)
-            , minimum    = C__S32 (CInt absMinimum)
-            , maximum    = C__S32 (CInt absMaximum)
-            , fuzz       = C__S32 (CInt absFuzz)
-            , flat       = C__S32 (CInt absFlat)
-            , resolution = C__S32 (CInt absResolution)
-            }
+    let info =
+            Input_absinfo
+                { value = C__S32 (CInt absValue)
+                , minimum = C__S32 (CInt absMinimum)
+                , maximum = C__S32 (CInt absMaximum)
+                , fuzz = C__S32 (CInt absFuzz)
+                , flat = C__S32 (CInt absFlat)
+                , resolution = C__S32 (CInt absResolution)
+                }
     p <- mallocBytes (sizeOf info)
     poke (castPtr p) info
     fp <- newForeignPtr_ p
