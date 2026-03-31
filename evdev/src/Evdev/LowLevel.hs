@@ -1,13 +1,13 @@
 module Evdev.LowLevel where
 
 import Data.ByteString (ByteString, packCString, useAsCString)
-import Data.Int (Int32, Int64)
+import Data.Int (Int32)
 import Data.Void (Void)
 import Data.Word (Word16, Word32)
-import Foreign (ForeignPtr, FunPtr, Ptr, allocaBytes, castPtr, mallocBytes, mallocForeignPtrBytes, newForeignPtr, newForeignPtr_, nullPtr, peek, poke, withForeignPtr)
-import Foreign.C (CInt (..), CLong (..), CString, CUInt (..), CUShort (..))
+import Foreign (ForeignPtr, FunPtr, Ptr, castPtr, mallocBytes, mallocForeignPtrBytes, newForeignPtr, newForeignPtr_, nullPtr, peek, poke, withForeignPtr)
+import Foreign.C (CInt (..), CString, CUInt (..))
 import Foreign.C.ConstPtr (ConstPtr (..))
-import Foreign.C.Error (Errno (Errno), eAGAIN, eOK)
+import Foreign.C.Error (Errno (Errno))
 import Foreign.Storable (sizeOf)
 import System.Posix.Types (Fd (Fd))
 
@@ -29,20 +29,6 @@ foreign import ccall "&libevdev_hs_close" finalizer_libevdev_hs_close :: FunPtr 
 foreign import ccall "&libevdev_uinput_destroy" finalizer_libevdev_uinput_destroy :: FunPtr (Ptr Raw.Libevdev_uinput -> IO ())
 
 -- * Data types
-
-data CEvent = CEvent
-    { cEventType :: Word16
-    , cEventCode :: Word16
-    , cEventValue :: Int32
-    , cEventTime :: CTimeVal
-    }
-    deriving (Eq, Ord, Read, Show)
-
-data CTimeVal = CTimeVal
-    { tvSec :: Int64
-    , tvUsec :: Int64
-    }
-    deriving (Eq, Ord, Read, Show)
 
 data AbsInfo = AbsInfo
     { absValue :: Int32
@@ -71,49 +57,6 @@ newDeviceFromFd fd = do
     dev <- libevdev_new
     err <- libevdev_set_fd dev fd
     pure (err, dev)
-
--- * Events
-
-inputEventSize :: Int
-inputEventSize = sizeOf (undefined :: Raw.Input_event)
-
-nextEvent :: Device -> CUInt -> IO (Errno, CEvent)
-nextEvent dev flags = withDevice dev $ \devPtr ->
-    allocaBytes inputEventSize $ \evPtr -> do
-        err <- Raw.libevdev_next_event devPtr flags (castPtr evPtr)
-        ev <- getEvent evPtr
-        pure (Errno err, ev)
-
-nextEventMay :: Device -> CUInt -> IO (Errno, Maybe CEvent)
-nextEventMay dev flags = withDevice dev $ \devPtr ->
-    allocaBytes inputEventSize $ \evPtr -> do
-        err <- Raw.libevdev_next_event devPtr flags (castPtr evPtr)
-        if Errno err /= eOK
-            then
-                pure
-                    ( if negateErrno (Errno err) == eAGAIN then eOK else Errno err
-                    , Nothing
-                    )
-            else do
-                ev <- getEvent evPtr
-                pure (eOK, Just ev)
-
-getEvent :: Ptr Raw.Input_event -> IO CEvent
-getEvent evPtr = do
-    Raw.Input_event{time, type', code, value} <- peek evPtr
-    let Raw.C__U16 (CUShort t) = type'
-        Raw.C__U16 (CUShort c) = code
-        Raw.C__S32 (CInt v) = value
-        Raw.Timeval{tv_sec, tv_usec} = time
-        Raw.C__Time_t (CLong sec) = tv_sec
-        Raw.C__Suseconds_t (CLong usec) = tv_usec
-    pure $
-        CEvent
-            { cEventType = fromIntegral t
-            , cEventCode = fromIntegral c
-            , cEventValue = fromIntegral v
-            , cEventTime = CTimeVal (fromIntegral sec) (fromIntegral usec)
-            }
 
 -- * Device properties (getters)
 
@@ -261,6 +204,3 @@ handleNull def f p = if p == nullPtr then def else f p
 
 packCString' :: CString -> IO (Maybe ByteString)
 packCString' = handleNull (return Nothing) (fmap Just . packCString)
-
-negateErrno :: Errno -> Errno
-negateErrno (Errno cint) = Errno (-cint)

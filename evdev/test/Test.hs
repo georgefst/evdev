@@ -12,6 +12,7 @@ import Data.Time
 import Evdev
 import Evdev.Codes
 import qualified Evdev.Uinput as Uinput
+import Foreign.C
 import RawFilePath
 import System.FilePath.ByteString
 import System.IO.Error
@@ -54,7 +55,7 @@ inverses =
         [ testGroup
             "TimeVal"
             [ testProperty "1" \(s, us) ->
-                let tv = CTimeVal s us
+                let tv = Timeval (fromIntegral @CLong s) (fromIntegral @CLong us)
                  in s < 0 || us < 0 || us >= 1_000_000 || toCTimeVal (fromCTimeVal tv) == tv
             , testProperty "2" \n ->
                 let -- 'toCTimeVal' goes from picoseconds to microseconds

@@ -1,3 +1,4 @@
+{-# LANGUAGE LexicalNegation #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# OPTIONS_GHC -fno-state-hack #-}
 
@@ -42,12 +43,12 @@ module Evdev (
     -- ** C-style types
     -- | These correspond more directly to C's /input_event/ and /timeval/.
     -- They are used internally, but may be useful for advanced users.
-    LL.CEvent(..),
+    Raw.Input_event(..),
     toCEvent,
     fromCEvent,
     toCEventData,
     fromCEventData,
-    LL.CTimeVal(..),
+    Raw.Timeval(..),
     toCTimeVal,
     fromCTimeVal,
 ) where
@@ -55,6 +56,7 @@ module Evdev (
 import Control.Arrow ((&&&))
 import Control.Monad (filterM, join)
 import Data.ByteString.Char8 (ByteString, pack)
+import Data.Coerce (coerce)
 import Data.Int (Int32)
 import Data.List.Extra (enumerate)
 import Data.Map ((!?), Map)
@@ -66,8 +68,8 @@ import qualified Data.Set as Set
 import Data.Time.Clock (DiffTime)
 import Data.Tuple.Extra (uncurry3)
 import Data.Word (Word16)
-import Foreign ((.|.))
-import Foreign.C (CUInt, Errno (Errno))
+import Foreign (alloca, peek, (.|.))
+import Foreign.C (CInt (CInt), CUInt, CUShort (CUShort), Errno (Errno), eAGAIN, eOK)
 import System.Posix.Process (getProcessID)
 import System.Posix.Files (readSymbolicLink)
 import System.Posix.ByteString (Fd, RawFilePath)
@@ -156,17 +158,31 @@ ungrabDevice = grabDevice' Raw.LIBEVDEV_UNGRAB
 -- | Get the next event from the device.
 nextEvent :: Device -> IO Event
 nextEvent dev =
-    fromCEvent <$> cErrCall "nextEvent" dev (LL.nextEvent (cDevice dev) (convertFlags defaultReadFlags))
+    cErrCall "nextEvent" dev $ LL.withDevice (cDevice dev) \devPtr -> alloca \evPtr ->
+    (,)
+        <$> (Errno <$> Raw.libevdev_next_event devPtr (convertFlags defaultReadFlags) evPtr)
+        <*> (fromCEvent <$> peek evPtr)
 
 {- | Get the next event from the device, if one is available.
 Designed for use with devices created from a non-blocking file descriptor. Otherwise equal to @fmap Just . nextEvent@.
 -}
 nextEventMay :: Device -> IO (Maybe Event)
 nextEventMay dev =
-    fmap fromCEvent <$> cErrCall "nextEventMay" dev (LL.nextEventMay (cDevice dev) (convertFlags nonBlockingReadFlags))
+    cErrCall "nextEventMay" dev $ LL.withDevice (cDevice dev) \devPtr -> alloca \evPtr -> do
+    err <- Raw.libevdev_next_event devPtr (convertFlags nonBlockingReadFlags) evPtr
+    if Errno err /= eOK
+        then
+            pure
+                ( if Errno -err == eAGAIN then eOK else Errno err
+                , Nothing
+                )
+        else (eOK,) . Just . fromCEvent <$> peek evPtr
 
-fromCEvent :: LL.CEvent -> Event
-fromCEvent (LL.CEvent t c v time) = Event (fromCEventData (t,c,v)) $ fromCTimeVal time
+fromCEvent :: Raw.Input_event -> Event
+fromCEvent Raw.Input_event{type', code, value, time} =
+    Event
+        (fromCEventData (coerce type', coerce code, coerce value))
+        (fromCTimeVal time)
 
 fromCEventData :: (Word16, Word16, Int32) -> EventData
 fromCEventData (t, EventCode -> c, EventValue -> v) = fromMaybe (UnknownEvent t c v) $ toEnum' t >>= \case
@@ -183,8 +199,8 @@ fromCEventData (t, EventCode -> c, EventValue -> v) = fromMaybe (UnknownEvent t 
     EvPwr -> Just $ PowerEvent c v
     EvFfStatus -> Just $ ForceFeedbackStatusEvent c v
 
-toCEvent :: Event -> LL.CEvent
-toCEvent (Event e time) = uncurry3 LL.CEvent (toCEventData e) $ toCTimeVal time
+toCEvent :: Event -> Raw.Input_event
+toCEvent (Event e time) = uncurry3 (Raw.Input_event $ toCTimeVal time) (coerce $ toCEventData e)
 
 toCEventData :: EventData -> (Word16, Word16, Int32)
 toCEventData = \case
@@ -203,13 +219,13 @@ toCEventData = \case
     ForceFeedbackStatusEvent (fromEnum' -> c) (fromEnum' -> v) -> (fromEnum' EvFfStatus, c, v)
     UnknownEvent             (fromEnum' -> t) (fromEnum' -> c) (fromEnum' -> v) -> (t, c, v)
 
-fromCTimeVal :: LL.CTimeVal -> DiffTime
-fromCTimeVal (LL.CTimeVal s us) =
+fromCTimeVal :: Raw.Timeval -> DiffTime
+fromCTimeVal Raw.Timeval{tv_sec = s, tv_usec = us} =
     fromRational $ fromIntegral s + (fromIntegral us % 1_000_000)
 
 --TODO QuickCheck inverse
-toCTimeVal :: DiffTime -> LL.CTimeVal
-toCTimeVal t = LL.CTimeVal n (round $ f * 1_000_000)
+toCTimeVal :: DiffTime -> Raw.Timeval
+toCTimeVal t = Raw.Timeval n (round $ f * 1_000_000)
     where (n,f) = properFraction t
 
 {- | Create a device from a valid path - usually /\/dev\/input\/eventX/ for some numeric /X/.
