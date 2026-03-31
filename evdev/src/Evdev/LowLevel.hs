@@ -139,13 +139,6 @@ instance Enum UInputOpenMode where
         | n == fromEnum UOMManaged = UOMManaged
         | otherwise = error $ "UInputOpenMode.toEnum: Cannot match " ++ show n
 
-readFlagToRaw :: ReadFlag -> Raw.Libevdev_read_flag
-readFlagToRaw = \case
-    Sync      -> Raw.LIBEVDEV_READ_FLAG_SYNC
-    Normal    -> Raw.LIBEVDEV_READ_FLAG_NORMAL
-    ForceSync -> Raw.LIBEVDEV_READ_FLAG_FORCE_SYNC
-    Blocking  -> Raw.LIBEVDEV_READ_FLAG_BLOCKING
-
 grabModeToRaw :: GrabMode -> Raw.Libevdev_grab_mode
 grabModeToRaw = \case
     LibevdevGrab   -> Raw.LIBEVDEV_GRAB
