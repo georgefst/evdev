@@ -1,15 +1,21 @@
 module Util where
 
+import Data.ByteString (ByteString, packCString)
 import qualified Data.ByteString.Char8 as BS
-import Foreign (ForeignPtr)
+import Data.Tuple (swap)
+import Foreign (Ptr, nullPtr)
+import Foreign.C (CString)
 import Foreign.C.Error (Errno (Errno), errnoToIOError)
 import System.Posix.ByteString (RawFilePath)
 
-import qualified Evdev.LowLevel as LL
-import qualified Evdev.Raw as Raw
-
 fromEnum' :: (Num c, Enum a) => a -> c
 fromEnum' = fromIntegral . fromEnum
+
+handleNull :: b -> (Ptr a -> b) -> Ptr a -> b
+handleNull def f p = if p == nullPtr then def else f p
+
+packCString' :: CString -> IO (Maybe ByteString)
+packCString' = handleNull (return Nothing) (fmap Just . packCString)
 
 --TODO careful - for some C calls (eg. libevdev_enable_event_code),
 -- int returned doesn't necessarily correspond to a particular error number
@@ -20,8 +26,12 @@ instance CErrInfo () where
     cErrInfo () = return Nothing
 instance CErrInfo RawFilePath where
     cErrInfo = pure . pure
-instance CErrInfo (ForeignPtr Raw.Libevdev_uinput) where
-    cErrInfo = LL.getSyspath
+instance CErrInfo (IO RawFilePath) where
+    cErrInfo = fmap pure
+instance CErrInfo (Maybe RawFilePath) where
+    cErrInfo = pure
+instance CErrInfo (IO (Maybe RawFilePath)) where
+    cErrInfo = id
 
 -- for c actions which return an error value (0 for success)
 -- run the action, throwing a relevant exception if the C errno is not 0
@@ -40,3 +50,6 @@ instance CErrCall (Errno, a) where
             Errno n -> do
                 path' <- cErrInfo info
                 ioError $ errnoToIOError func (Errno $ abs n) Nothing $ BS.unpack <$> path'
+instance CErrCall (IO a, Errno) where
+    type CErrCallRes (IO a, Errno) = a
+    cErrCall func info x = cErrCall @(Errno, a) func info $ sequence =<< swap <$> x

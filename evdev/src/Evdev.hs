@@ -297,7 +297,7 @@ data AbsInfo = AbsInfo
 deviceAbsAxis :: Device -> AbsoluteAxis -> IO (Maybe AbsInfo)
 deviceAbsAxis dev (fromEnum' -> code) = withForeignPtr (cDevice dev) \devPtr ->
     (unConstPtr <$> Raw.libevdev_get_abs_info (ConstPtr devPtr) (CUInt code))
-        >>= LL.handleNull (pure Nothing) \absInfoPtr ->
+        >>= handleNull (pure Nothing) \absInfoPtr ->
             peek absInfoPtr <&> \raw ->
                 Just
                     AbsInfo
@@ -315,7 +315,7 @@ data LEDValue = LedOn | LedOff
 -- | Set the state of a LED on a device.
 setDeviceLED :: Device -> LEDEvent -> LEDValue -> IO ()
 setDeviceLED dev led val = cErrCall "setDeviceLED" dev $ withForeignPtr (cDevice dev) \devPtr ->
-    Errno <$> Raw.libevdev_kernel_set_led_value devPtr (LL.convertEnum led) case val of
+    Errno <$> Raw.libevdev_kernel_set_led_value devPtr (fromEnum' led) case val of
         LedOn -> Raw.LIBEVDEV_LED_ON
         LedOff -> Raw.LIBEVDEV_LED_OFF
 

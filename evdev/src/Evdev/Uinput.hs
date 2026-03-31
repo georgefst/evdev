@@ -25,7 +25,6 @@ import Control.Monad
 import Control.Monad.State
 import Data.Foldable
 import Data.Function
-import Data.Tuple.Extra
 import Foreign
 import Foreign.C
 import Foreign.C.ConstPtr
@@ -150,8 +149,12 @@ defaultDeviceOpts =
 
 -- | Write a single event. Doesn't issue a sync event, so: @writeEvent dev e /= writeBatch dev [e]@.
 writeEvent :: Device -> EventData -> IO ()
-writeEvent (Device dev) e = do
-    cErrCall "writeEvent" dev $ uncurry3 (LL.writeEvent dev) $ toCEventData e
+writeEvent (Device dev) e =
+    withForeignPtr dev \devPtr -> cErrCall "writeEvent" (deviceSyspath $ Device dev) $
+        Errno <$> Raw.libevdev_uinput_write_event (ConstPtr devPtr) (fromIntegral t) (fromIntegral c) (fromIntegral v)
+  where
+    (t, c, v) = toCEventData e
+
 
 -- | Write several events followed by a 'SynReport'.
 writeBatch :: Foldable t => Device -> t EventData -> IO ()
@@ -160,9 +163,9 @@ writeBatch dev es = do
     writeEvent dev $ SyncEvent SynReport
 
 deviceSyspath :: Device -> IO (Maybe ByteString)
-deviceSyspath = LL.getSyspath . \(Device d) -> d
+deviceSyspath (Device dev) = withForeignPtr dev $ packCString' . unConstPtr <=< Raw.libevdev_uinput_get_syspath
 deviceDevnode :: Device -> IO (Maybe ByteString)
-deviceDevnode = LL.getDevnode . \(Device d) -> d
+deviceDevnode (Device dev) = withForeignPtr dev $ packCString' . unConstPtr <=< Raw.libevdev_uinput_get_devnode
 
 -- | Make options for a device capable of precisely the events in the list.
 deviceOptsFromEvents ::
