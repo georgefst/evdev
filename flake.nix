@@ -28,6 +28,15 @@
           })
         ];
         pkgs = import nixpkgs { inherit system overlays; inherit (haskell-nix) config; };
+        flake = pkgs.myHaskellProject.flake { };
       in
-      pkgs.myHaskellProject.flake { });
+      flake // {
+        packages = flake.packages // {
+          ci = pkgs.linkFarm "ci" (
+            pkgs.lib.mapAttrsToList (name: drv: { inherit name; path = drv; })
+              flake.ciJobs.packages
+          );
+        };
+      }
+    );
 }

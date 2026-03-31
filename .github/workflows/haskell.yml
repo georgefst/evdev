@@ -11,51 +11,16 @@ jobs:
     name: main
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
 
-      - name: Set user input permissions
-        run: sudo usermod -a -G input $USER
+      - name: Build all packages
+        run: nix build .#ci
 
-      - name: Set up GHC
-        uses: haskell-actions/setup@v2
-        id: setup
-        with:
-          ghc-version: '9.12'
-          cabal-version: '3.16'
-          cabal-update: true
+      # TODO work around test permissions and ARM build and
+      # - name: Run checks
+      #   run: nix flake check
 
-      - name: Install libevdev
-        run: sudo apt install -y libevdev-dev
-
-      - name: Configure the build
-        run: |
-          cabal configure --enable-tests --enable-benchmarks --disable-documentation
-          cabal build all --dry-run
-
-      - name: Restore cached dependencies
-        uses: actions/cache/restore@v3
-        id: cache
-        env:
-          key: ${{ runner.os }}-ghc-${{ steps.setup.outputs.ghc-version }}-cabal-${{ steps.setup.outputs.cabal-version }}
-        with:
-          path: ${{ steps.setup.outputs.cabal-store }}
-          key: ${{ env.key }}-plan-${{ hashFiles('**/plan.json') }}
-          restore-keys: ${{ env.key }}-
-
-      - name: Install dependencies
-        run: cabal build all --only-dependencies
-
-      - name: Save cached dependencies
-        uses: actions/cache/save@v3
-        if: ${{ steps.cache.outputs.cache-primary-key != steps.cache.outputs.cache-matched-key }}
-        with:
-          path: ${{ steps.setup.outputs.cabal-store }}
-          key: ${{ steps.cache.outputs.cache-primary-key }}
-
-      - name: Build
-        run: cabal build all
-
-      - name: Run tests
-        run: |
-          cabal build test
-          sudo $(cabal list-bin test)
+      - name: Run main test with permissions
+        run: sudo $(nix build .#evdev:test:test --print-out-paths)/bin/test
