@@ -40,7 +40,7 @@ import qualified Evdev.Raw as Raw
 import Util
 
 -- | A `uinput` device.
-newtype Device = Device LL.UDevice
+newtype Device = Device (ForeignPtr Raw.Libevdev_uinput)
 
 -- | Create a new `uinput` device.
 newDevice ::
@@ -52,7 +52,7 @@ newDevice name DeviceOpts{..} = do
     dev <- LL.libevdev_new
     LL.setDeviceName dev name
 
-    let maybeSet :: (LL.Device -> a -> IO ()) -> Maybe a -> IO ()
+    let maybeSet :: (ForeignPtr Raw.Libevdev -> a -> IO ()) -> Maybe a -> IO ()
         maybeSet = maybe mempty . ($ dev)
     maybeSet LL.setDevicePhys phys
     maybeSet LL.setDeviceUniq uniq
@@ -62,9 +62,9 @@ newDevice name DeviceOpts{..} = do
     maybeSet LL.libevdev_set_id_version idVersion
 
     let enable (dataPtr :: Maybe (Either (Ptr Raw.Input_absinfo) (Ptr Int))) t cs = do
-            unless (null cs) $ cec $ LL.withDevice dev \devPtr ->
+            unless (null cs) $ cec $ withForeignPtr dev \devPtr ->
                 Errno <$> Raw.libevdev_enable_event_type devPtr t'
-            forM_ cs $ \c -> cec $ LL.withDevice dev \devPtr ->
+            forM_ cs $ \c -> cec $ withForeignPtr dev \devPtr ->
                 Errno <$> Raw.libevdev_enable_event_code devPtr t' c
                     (ConstPtr $ maybe nullPtr (either castPtr castPtr) dataPtr)
           where
@@ -97,14 +97,14 @@ newDevice name DeviceOpts{..} = do
             }
             & flip with \ptr -> enable (Just $ Left ptr) EvAbs [fromEnum' axis]
 
-    LL.withDevice dev \devPtr -> alloca \pp -> do
+    withForeignPtr dev \devPtr -> alloca \pp -> do
         cec $ Errno <$> Raw.libevdev_uinput_create_from_device
             (ConstPtr devPtr)
             (coerce (Raw.LIBEVDEV_UINPUT_OPEN_MANAGED).unwrap)
             pp
         udevPtr <- peek pp
         udevFP <- newForeignPtr LL.finalizer_libevdev_uinput_destroy udevPtr
-        pure $ Device $ LL.UDevice udevFP
+        pure $ Device udevFP
   where
     cec :: CErrCall a => IO a -> IO (CErrCallRes a)
     cec = cErrCall "newDevice" ()

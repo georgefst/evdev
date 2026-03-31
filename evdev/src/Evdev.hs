@@ -69,7 +69,7 @@ import qualified Data.Set as Set
 import Data.Time.Clock (DiffTime)
 import Data.Tuple.Extra (uncurry3)
 import Data.Word (Word16)
-import Foreign (alloca, (.|.), peek)
+import Foreign (alloca, (.|.), peek, ForeignPtr, withForeignPtr)
 import Foreign.C (CInt (CInt), CUInt (CUInt), CUShort (CUShort), Errno (Errno), eAGAIN, eOK)
 import Foreign.C.ConstPtr (ConstPtr (ConstPtr), unConstPtr)
 import System.Posix.Process (getProcessID)
@@ -85,7 +85,7 @@ import Util
 -- stores path that was originally used, as it seems impossible to recover this later
 -- We don't allow the user to access the underlying low-level C device.
 -- | An input device.
-data Device = Device { cDevice :: LL.Device, devicePath :: ByteString }
+data Device = Device { cDevice :: ForeignPtr Raw.Libevdev, devicePath :: ByteString }
 
 
 instance Show Device where
@@ -160,7 +160,7 @@ ungrabDevice = grabDevice' Raw.LIBEVDEV_UNGRAB
 -- | Get the next event from the device.
 nextEvent :: Device -> IO Event
 nextEvent dev =
-    cErrCall "nextEvent" dev $ LL.withDevice (cDevice dev) \devPtr -> alloca \evPtr ->
+    cErrCall "nextEvent" dev $ withForeignPtr (cDevice dev) \devPtr -> alloca \evPtr ->
     (,)
         <$> (Errno <$> Raw.libevdev_next_event devPtr (convertFlags defaultReadFlags) evPtr)
         <*> (fromCEvent <$> peek evPtr)
@@ -170,7 +170,7 @@ Designed for use with devices created from a non-blocking file descriptor. Other
 -}
 nextEventMay :: Device -> IO (Maybe Event)
 nextEventMay dev =
-    cErrCall "nextEventMay" dev $ LL.withDevice (cDevice dev) \devPtr -> alloca \evPtr -> do
+    cErrCall "nextEventMay" dev $ withForeignPtr (cDevice dev) \devPtr -> alloca \evPtr -> do
     err <- Raw.libevdev_next_event devPtr (convertFlags nonBlockingReadFlags) evPtr
     if Errno err /= eOK
         then
@@ -295,7 +295,7 @@ data AbsInfo = AbsInfo
     deriving (Show)
 
 deviceAbsAxis :: Device -> AbsoluteAxis -> IO (Maybe AbsInfo)
-deviceAbsAxis dev (fromEnum' -> code) = LL.withDevice (cDevice dev) \devPtr ->
+deviceAbsAxis dev (fromEnum' -> code) = withForeignPtr (cDevice dev) \devPtr ->
     (unConstPtr <$> Raw.libevdev_get_abs_info (ConstPtr devPtr) (CUInt code))
         >>= LL.handleNull (pure Nothing) \absInfoPtr ->
             peek absInfoPtr <&> \raw ->
@@ -314,7 +314,7 @@ data LEDValue = LedOn | LedOff
 
 -- | Set the state of a LED on a device.
 setDeviceLED :: Device -> LEDEvent -> LEDValue -> IO ()
-setDeviceLED dev led val = cErrCall "setDeviceLED" dev $ LL.withDevice (cDevice dev) \devPtr ->
+setDeviceLED dev led val = cErrCall "setDeviceLED" dev $ withForeignPtr (cDevice dev) \devPtr ->
     Errno <$> Raw.libevdev_kernel_set_led_value devPtr (LL.convertEnum led) case val of
         LedOn -> Raw.LIBEVDEV_LED_ON
         LedOff -> Raw.LIBEVDEV_LED_OFF
@@ -323,7 +323,7 @@ setDeviceLED dev led val = cErrCall "setDeviceLED" dev $ LL.withDevice (cDevice 
 
 grabDevice' :: Raw.Libevdev_grab_mode -> Device -> IO ()
 grabDevice' mode dev = cErrCall "grabDevice" dev $
-    LL.withDevice (cDevice dev) $ fmap Errno . flip Raw.libevdev_grab mode
+    withForeignPtr (cDevice dev) $ fmap Errno . flip Raw.libevdev_grab mode
 
 {-
 TODO this is a workaround until c2hs has a better story for enum conversions

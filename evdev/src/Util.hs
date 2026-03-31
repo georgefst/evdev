@@ -1,10 +1,12 @@
 module Util where
 
 import qualified Data.ByteString.Char8 as BS
+import Foreign (ForeignPtr)
 import Foreign.C.Error (Errno (Errno), errnoToIOError)
 import System.Posix.ByteString (RawFilePath)
 
 import qualified Evdev.LowLevel as LL
+import qualified Evdev.Raw as Raw
 
 fromEnum' :: (Num c, Enum a) => a -> c
 fromEnum' = fromIntegral . fromEnum
@@ -18,7 +20,7 @@ instance CErrInfo () where
     cErrInfo () = return Nothing
 instance CErrInfo RawFilePath where
     cErrInfo = pure . pure
-instance CErrInfo LL.UDevice where
+instance CErrInfo (ForeignPtr Raw.Libevdev_uinput) where
     cErrInfo = LL.getSyspath
 
 -- for c actions which return an error value (0 for success)
