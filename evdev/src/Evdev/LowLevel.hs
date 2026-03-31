@@ -27,14 +27,6 @@ withUDevice (UDevice fp) = withForeignPtr fp
 foreign import ccall "&libevdev_hs_close" finalizer_libevdev_hs_close :: FunPtr (Ptr Raw.Libevdev -> IO ())
 foreign import ccall "&libevdev_uinput_destroy" finalizer_libevdev_uinput_destroy :: FunPtr (Ptr Raw.Libevdev_uinput -> IO ())
 
--- | Convert a Ptr to a ConstPtr (for calling const-qualified C functions)
-constPtr :: Ptr a -> ConstPtr a
-constPtr = ConstPtr
-
--- | Convert a ConstPtr to a regular Ptr
-unConstPtr' :: ConstPtr a -> Ptr a
-unConstPtr' (ConstPtr p) = p
-
 -- * Data types
 
 data CEvent = CEvent
@@ -126,52 +118,52 @@ getEvent evPtr = do
 
 deviceFd :: Device -> IO Fd
 deviceFd dev = withDevice dev $ \devPtr ->
-    Fd <$> Raw.libevdev_get_fd (constPtr devPtr)
+    Fd <$> Raw.libevdev_get_fd (ConstPtr devPtr)
 
 deviceName :: Device -> IO (IO ByteString)
 deviceName dev = withDevice dev $ \devPtr -> do
-    cstr <- Raw.libevdev_get_name (constPtr devPtr)
-    pure $ packCString (unConstPtr' cstr)
+    cstr <- Raw.libevdev_get_name (ConstPtr devPtr)
+    pure $ packCString (unConstPtr cstr)
 
 devicePhys :: Device -> IO (IO (Maybe ByteString))
 devicePhys dev = withDevice dev $ \devPtr -> do
-    cstr <- Raw.libevdev_get_phys (constPtr devPtr)
-    pure $ packCString' (unConstPtr' cstr)
+    cstr <- Raw.libevdev_get_phys (ConstPtr devPtr)
+    pure $ packCString' (unConstPtr cstr)
 
 deviceUniq :: Device -> IO (IO (Maybe ByteString))
 deviceUniq dev = withDevice dev $ \devPtr -> do
-    cstr <- Raw.libevdev_get_uniq (constPtr devPtr)
-    pure $ packCString' (unConstPtr' cstr)
+    cstr <- Raw.libevdev_get_uniq (ConstPtr devPtr)
+    pure $ packCString' (unConstPtr cstr)
 
 deviceProduct :: Device -> IO Int
 deviceProduct dev = withDevice dev $ \devPtr ->
-    fromIntegral <$> Raw.libevdev_get_id_product (constPtr devPtr)
+    fromIntegral <$> Raw.libevdev_get_id_product (ConstPtr devPtr)
 
 deviceVendor :: Device -> IO Int
 deviceVendor dev = withDevice dev $ \devPtr ->
-    fromIntegral <$> Raw.libevdev_get_id_vendor (constPtr devPtr)
+    fromIntegral <$> Raw.libevdev_get_id_vendor (ConstPtr devPtr)
 
 deviceBustype :: Device -> IO Int
 deviceBustype dev = withDevice dev $ \devPtr ->
-    fromIntegral <$> Raw.libevdev_get_id_bustype (constPtr devPtr)
+    fromIntegral <$> Raw.libevdev_get_id_bustype (ConstPtr devPtr)
 
 deviceVersion :: Device -> IO Int
 deviceVersion dev = withDevice dev $ \devPtr ->
-    fromIntegral <$> Raw.libevdev_get_id_version (constPtr devPtr)
+    fromIntegral <$> Raw.libevdev_get_id_version (ConstPtr devPtr)
 
 -- * Device properties (setters)
 
 setDeviceName :: Device -> ByteString -> IO ()
 setDeviceName dev name = withDevice dev $ \devPtr ->
-    useAsCString name $ \cstr -> Raw.libevdev_set_name devPtr (constPtr cstr)
+    useAsCString name $ \cstr -> Raw.libevdev_set_name devPtr (ConstPtr cstr)
 
 setDevicePhys :: Device -> ByteString -> IO ()
 setDevicePhys dev phys = withDevice dev $ \devPtr ->
-    useAsCString phys $ \cstr -> Raw.libevdev_set_phys devPtr (constPtr cstr)
+    useAsCString phys $ \cstr -> Raw.libevdev_set_phys devPtr (ConstPtr cstr)
 
 setDeviceUniq :: Device -> ByteString -> IO ()
 setDeviceUniq dev uniq = withDevice dev $ \devPtr ->
-    useAsCString uniq $ \cstr -> Raw.libevdev_set_uniq devPtr (constPtr cstr)
+    useAsCString uniq $ \cstr -> Raw.libevdev_set_uniq devPtr (ConstPtr cstr)
 
 libevdev_set_id_product :: Device -> Int -> IO ()
 libevdev_set_id_product dev n = withDevice dev $ \devPtr ->
@@ -193,22 +185,22 @@ libevdev_set_id_version dev n = withDevice dev $ \devPtr ->
 
 hasProperty :: Device -> DeviceProperty -> IO Bool
 hasProperty dev prop = withDevice dev $ \devPtr ->
-    (/= 0) <$> Raw.libevdev_has_property (constPtr devPtr) (convertEnum prop)
+    (/= 0) <$> Raw.libevdev_has_property (ConstPtr devPtr) (convertEnum prop)
 
 hasEventType :: Device -> EventType -> IO Bool
 hasEventType dev et = withDevice dev $ \devPtr ->
-    (/= 0) <$> Raw.libevdev_has_event_type (constPtr devPtr) (convertEnum et)
+    (/= 0) <$> Raw.libevdev_has_event_type (ConstPtr devPtr) (convertEnum et)
 
 hasEventCode :: Device -> Word16 -> Word16 -> IO Bool
 hasEventCode dev t c = withDevice dev $ \devPtr ->
-    (/= 0) <$> Raw.libevdev_has_event_code (constPtr devPtr) (fromIntegral t) (fromIntegral c)
+    (/= 0) <$> Raw.libevdev_has_event_code (ConstPtr devPtr) (fromIntegral t) (fromIntegral c)
 
 -- * Abs info
 
 getAbsInfo :: Device -> Word32 -> IO (Maybe AbsInfo)
 getAbsInfo dev code = withDevice dev $ \devPtr -> do
-    ptr <- Raw.libevdev_get_abs_info (constPtr devPtr) (CUInt code)
-    let rawPtr = unConstPtr' ptr :: Ptr Raw.Input_absinfo
+    ptr <- Raw.libevdev_get_abs_info (ConstPtr devPtr) (CUInt code)
+    let rawPtr = unConstPtr ptr :: Ptr Raw.Input_absinfo
     if rawPtr == nullPtr
         then pure Nothing
         else do
@@ -256,7 +248,7 @@ enableType dev t = withDevice dev $ \devPtr ->
 
 enableCode :: Device -> Word16 -> Word16 -> Ptr () -> IO Errno
 enableCode dev t c dataPtr = withDevice dev $ \devPtr ->
-    Errno <$> Raw.libevdev_enable_event_code devPtr (fromIntegral t) (fromIntegral c) (constPtr $ castPtr dataPtr)
+    Errno <$> Raw.libevdev_enable_event_code devPtr (fromIntegral t) (fromIntegral c) (ConstPtr $ castPtr dataPtr)
 
 -- * Uinput
 
@@ -264,21 +256,21 @@ createFromDevice :: Device -> Fd -> IO (Errno, UDevice)
 createFromDevice dev (Fd fd) = withDevice dev $ \devPtr -> do
     udevPtrPtr <- mallocForeignPtrBytes (sizeOf (undefined :: Ptr ()))
     (e, udevPtr) <- withForeignPtr udevPtrPtr $ \pp ->
-        (,) <$> Raw.libevdev_uinput_create_from_device (constPtr devPtr) fd (castPtr pp) <*> peek pp
+        (,) <$> Raw.libevdev_uinput_create_from_device (ConstPtr devPtr) fd (castPtr pp) <*> peek pp
     udevFP <- newForeignPtr finalizer_libevdev_uinput_destroy udevPtr
     pure (Errno e, UDevice udevFP)
 
 getSyspath :: UDevice -> IO (Maybe ByteString)
 getSyspath dev = withUDevice dev $ \devPtr ->
-    Raw.libevdev_uinput_get_syspath devPtr >>= packCString' . unConstPtr'
+    Raw.libevdev_uinput_get_syspath devPtr >>= packCString' . unConstPtr
 
 getDevnode :: UDevice -> IO (Maybe ByteString)
 getDevnode dev = withUDevice dev $ \devPtr ->
-    Raw.libevdev_uinput_get_devnode devPtr >>= packCString' . unConstPtr'
+    Raw.libevdev_uinput_get_devnode devPtr >>= packCString' . unConstPtr
 
 writeEvent :: UDevice -> Word16 -> Word16 -> Int32 -> IO Errno
 writeEvent dev t c v = withUDevice dev $ \devPtr ->
-    Errno <$> Raw.libevdev_uinput_write_event (constPtr devPtr) (fromIntegral t) (fromIntegral c) (fromIntegral v)
+    Errno <$> Raw.libevdev_uinput_write_event (ConstPtr devPtr) (fromIntegral t) (fromIntegral c) (fromIntegral v)
 
 -- * Util
 
