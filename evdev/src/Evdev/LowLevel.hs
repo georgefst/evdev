@@ -17,10 +17,7 @@ foreign import ccall "&libevdev_hs_close" finalizer_libevdev_hs_close :: FunPtr 
 foreign import ccall "&libevdev_uinput_destroy" finalizer_libevdev_uinput_destroy :: FunPtr (Ptr Raw.Libevdev_uinput -> IO ())
 
 libevdev_new :: IO (ForeignPtr Raw.Libevdev)
-libevdev_new = do
-    ptr <- Raw.libevdev_new
-    fp <- newForeignPtr finalizer_libevdev_hs_close ptr
-    pure fp
+libevdev_new = newForeignPtr finalizer_libevdev_hs_close =<< Raw.libevdev_new
 
 libevdev_set_fd :: ForeignPtr Raw.Libevdev -> Fd -> IO Errno
 libevdev_set_fd dev (Fd fd) = withForeignPtr dev $ \devPtr ->

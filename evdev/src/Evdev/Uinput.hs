@@ -102,9 +102,7 @@ newDevice name DeviceOpts{..} = do
             (ConstPtr devPtr)
             (coerce (Raw.LIBEVDEV_UINPUT_OPEN_MANAGED).unwrap)
             pp
-        udevPtr <- peek pp
-        udevFP <- newForeignPtr LL.finalizer_libevdev_uinput_destroy udevPtr
-        pure $ Device udevFP
+        fmap Device . newForeignPtr LL.finalizer_libevdev_uinput_destroy =<< peek pp
   where
     cec :: CErrCall a => IO a -> IO (CErrCallRes a)
     cec = cErrCall "newDevice" ()
