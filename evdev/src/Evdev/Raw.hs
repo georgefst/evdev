@@ -34,4 +34,4 @@ do
             hashInclude "libevdev/libevdev-uinput.h"
 
 foreign import ccall "&libevdev_hs_close" libevdev_hs_close :: FinalizerPtr Libevdev
-foreign import ccall "&libevdev_uinput_destroy" finalizer_libevdev_uinput_destroy :: FunPtr (Ptr Libevdev_uinput -> IO ())
+foreign import ccall "&libevdev_uinput_destroy" libevdev_uinput_destroy_funptr :: FunPtr (Ptr Libevdev_uinput -> IO ())
