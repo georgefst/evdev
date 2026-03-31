@@ -198,31 +198,19 @@ hasEventCode dev t c = withDevice dev $ \devPtr ->
 -- * Abs info
 
 getAbsInfo :: Device -> Word32 -> IO (Maybe AbsInfo)
-getAbsInfo dev code = withDevice dev $ \devPtr -> do
-    ptr <- Raw.libevdev_get_abs_info (ConstPtr devPtr) (CUInt code)
-    let rawPtr = unConstPtr ptr :: Ptr Raw.Input_absinfo
-    if rawPtr == nullPtr
-        then pure Nothing
-        else do
+getAbsInfo dev code = withDevice dev \devPtr -> do
+    (unConstPtr <$> Raw.libevdev_get_abs_info (ConstPtr devPtr) (CUInt code))
+        >>= handleNull (pure Nothing) \absInfoPtr -> do
             Raw.Input_absinfo
-                { value = Raw.C__S32 (CInt v)
-                , minimum = Raw.C__S32 (CInt mn)
-                , maximum = Raw.C__S32 (CInt mx)
-                , fuzz = Raw.C__S32 (CInt fz)
-                , flat = Raw.C__S32 (CInt fl)
-                , resolution = Raw.C__S32 (CInt res)
+                { value = Raw.C__S32 (CInt absValue)
+                , minimum = Raw.C__S32 (CInt absMinimum)
+                , maximum = Raw.C__S32 (CInt absMaximum)
+                , fuzz = Raw.C__S32 (CInt absFuzz)
+                , flat = Raw.C__S32 (CInt absFlat)
+                , resolution = Raw.C__S32 (CInt absResolution)
                 } <-
-                peek rawPtr
-            pure $
-                Just
-                    AbsInfo
-                        { absValue = v
-                        , absMinimum = mn
-                        , absMaximum = mx
-                        , absFuzz = fz
-                        , absFlat = fl
-                        , absResolution = res
-                        }
+                peek absInfoPtr
+            pure $ Just AbsInfo{..}
 
 withAbsInfo :: AbsInfo -> (Ptr () -> IO a) -> IO a
 withAbsInfo AbsInfo{..} f = do
@@ -277,8 +265,11 @@ writeEvent dev t c v = withUDevice dev $ \devPtr ->
 convertEnum :: (Enum a, Integral b) => a -> b
 convertEnum = fromIntegral . fromEnum
 
+handleNull :: b -> (Ptr a -> b) -> Ptr a -> b
+handleNull def f p = if p == nullPtr then def else f p
+
 packCString' :: CString -> IO (Maybe ByteString)
-packCString' p = if p == nullPtr then pure Nothing else Just <$> packCString p
+packCString' = handleNull (return Nothing) (fmap Just . packCString)
 
 negateErrno :: Errno -> Errno
 negateErrno (Errno cint) = Errno (-cint)
