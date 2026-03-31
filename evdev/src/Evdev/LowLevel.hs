@@ -3,11 +3,9 @@ module Evdev.LowLevel where
 import Data.ByteString (ByteString, packCString, useAsCString)
 import Data.Int (Int32)
 import Data.Word (Word16)
-import Foreign (ForeignPtr, FunPtr, Ptr, castPtr, mallocForeignPtrBytes, newForeignPtr, nullPtr, peek, withForeignPtr)
-import Foreign.C (CString)
+import Foreign (ForeignPtr, FunPtr, Ptr, newForeignPtr, nullPtr, withForeignPtr)
+import Foreign.C (CString, Errno (Errno))
 import Foreign.C.ConstPtr (ConstPtr (..))
-import Foreign.C.Error (Errno (Errno))
-import Foreign.Storable (sizeOf)
 import System.Posix.Types (Fd (Fd))
 
 import Evdev.Codes
@@ -127,14 +125,6 @@ hasEventCode dev t c = withDevice dev $ \devPtr ->
     (/= 0) <$> Raw.libevdev_has_event_code (ConstPtr devPtr) (fromIntegral t) (fromIntegral c)
 
 -- * Uinput
-
-createFromDevice :: Device -> Fd -> IO (Errno, UDevice)
-createFromDevice dev (Fd fd) = withDevice dev $ \devPtr -> do
-    udevPtrPtr <- mallocForeignPtrBytes (sizeOf (undefined :: Ptr ()))
-    (e, udevPtr) <- withForeignPtr udevPtrPtr $ \pp ->
-        (,) <$> Raw.libevdev_uinput_create_from_device (ConstPtr devPtr) fd (castPtr pp) <*> peek pp
-    udevFP <- newForeignPtr finalizer_libevdev_uinput_destroy udevPtr
-    pure (Errno e, UDevice udevFP)
 
 getSyspath :: UDevice -> IO (Maybe ByteString)
 getSyspath dev = withUDevice dev $ \devPtr ->

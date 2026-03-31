@@ -97,7 +97,14 @@ newDevice name DeviceOpts{..} = do
             }
             & flip with \ptr -> enable (Just $ Left ptr) EvAbs [fromEnum' axis]
 
-    fmap Device $ cec $ LL.createFromDevice dev $ fromIntegral (Raw.LIBEVDEV_UINPUT_OPEN_MANAGED).unwrap
+    LL.withDevice dev \devPtr -> alloca \pp -> do
+        cec $ Errno <$> Raw.libevdev_uinput_create_from_device
+            (ConstPtr devPtr)
+            (coerce (Raw.LIBEVDEV_UINPUT_OPEN_MANAGED).unwrap)
+            pp
+        udevPtr <- peek pp
+        udevFP <- newForeignPtr LL.finalizer_libevdev_uinput_destroy udevPtr
+        pure $ Device $ LL.UDevice udevFP
   where
     cec :: CErrCall a => IO a -> IO (CErrCallRes a)
     cec = cErrCall "newDevice" ()
