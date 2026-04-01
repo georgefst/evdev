@@ -1,43 +1,131 @@
--- TODO pure vibes
-
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE MultilineStrings #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE TemplateHaskellQuotes #-}
+{-# LANGUAGE NoFieldSelectors #-}
 
 module Evdev.Codes.Generator (generateCodes) where
 
 import Data.Char
+import Data.Either
+import Data.Foldable
+import Data.Functor
 import Data.List
+import Data.List.Extra
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Maybe
+import Data.Tuple.Extra
 import Language.Haskell.TH
+
+groups :: [Group]
+groups =
+    [ Group
+        { typeName = mkName "EventType"
+        , prefixes = ["EV"]
+        , doc =
+            """
+            Each of these corresponds to one of the constructors of 'Evdev.EventData'.
+            So you're unlikely to need to use these directly (C doesn't have ADTs - we do).
+            """
+        }
+    , Group
+        { typeName = mkName "SyncEvent"
+        , prefixes = ["SYN"]
+        , doc =
+            """
+            Synchronization events
+            """
+        }
+    , Group
+        { typeName = mkName "Key"
+        , prefixes = ["KEY", "BTN"]
+        , doc =
+            """
+            Keys and buttons
+            """
+        }
+    , Group
+        { typeName = mkName "RelativeAxis"
+        , prefixes = ["REL"]
+        , doc =
+            """
+            Relative changes
+            """
+        }
+    , Group
+        { typeName = mkName "AbsoluteAxis"
+        , prefixes = ["ABS"]
+        , doc =
+            """
+            Absolute changes
+            """
+        }
+    , Group
+        { typeName = mkName "SwitchEvent"
+        , prefixes = ["SW"]
+        , doc =
+            """
+            Stateful binary switches
+            """
+        }
+    , Group
+        { typeName = mkName "MiscEvent"
+        , prefixes = ["MSC"]
+        , doc =
+            """
+            Miscellaneous
+            """
+        }
+    , Group
+        { typeName = mkName "LEDEvent"
+        , prefixes = ["LED"]
+        , doc =
+            """
+            LEDs
+            """
+        }
+    , Group
+        { typeName = mkName "RepeatEvent"
+        , prefixes = ["REP"]
+        , doc =
+            """
+            Specifying autorepeating events
+            """
+        }
+    , Group
+        { typeName = mkName "SoundEvent"
+        , prefixes = ["SND"]
+        , doc =
+            """
+            For simple sound output devices
+            """
+        }
+    , Group
+        { typeName = mkName "DeviceProperty"
+        , prefixes = ["INPUT_PROP"]
+        , doc =
+            """
+            Device properties
+            """
+        }
+    ]
 
 -- | A define from the header file: either a primary (value is a number) or an alias (value is another name).
 data Define
-    = Primary String String -- ^ Name and raw value string (for dedup grouping)
-    | Alias String String -- ^ Alias name and target name
+    = Primary {grp :: Name, name :: String, val :: String}
+    | Alias {grp :: Name, name :: String, target :: String}
     deriving (Show)
 
 -- | Configuration for a group of defines that map to a single Haskell type.
 data Group = Group
-    { groupTypeName :: String
-    , groupPrefixes :: [String]
-    , groupDoc :: String
+    { typeName :: Name
+    , prefixes :: [String]
+    , doc :: String
     }
 
-groups :: [Group]
-groups =
-    [ Group "EventType" ["EV_"] "Each of these corresponds to one of the constructors of 'Evdev.EventData'. So you're unlikely to need to use these directly (C doesn't have ADTs - we do)."
-    , Group "SyncEvent" ["SYN_"] "Synchronization events"
-    , Group "Key" ["KEY_", "BTN_"] "Keys and buttons"
-    , Group "RelativeAxis" ["REL_"] "Relative changes"
-    , Group "AbsoluteAxis" ["ABS_"] "Absolute changes"
-    , Group "SwitchEvent" ["SW_"] "Stateful binary switches"
-    , Group "MiscEvent" ["MSC_"] "Miscellaneous"
-    , Group "LEDEvent" ["LED_"] "LEDs"
-    , Group "RepeatEvent" ["REP_"] "Specifying autorepeating events"
-    , Group "SoundEvent" ["SND_"] "For simple sound output devices"
-    , Group "DeviceProperty" ["INPUT_PROP_"] "Device properties"
-    ]
+groupMap :: Map Name Group
+groupMap = Map.fromList $ ((.typeName) &&& id) <$> groups
 
 -- | Names to skip when parsing the header.
 skippedNames :: [String]
@@ -47,165 +135,168 @@ skippedNames = ["KEY_MIN_INTERESTING"]
 parseLine :: String -> Maybe Define
 parseLine line = case words line of
     ("#define" : name : value@(v : _) : _)
-        | any (`isSuffixOf'` name) ["_MAX", "_CNT"] -> Nothing
+        | any (`isSuffixOf` name) ["_MAX", "_CNT"] -> Nothing
         | name `elem` skippedNames -> Nothing
         | name == "_INPUT_EVENT_CODES_H" -> Nothing
-        | isDigit v -> Just (Primary name value)
-        | isAlpha v -> Just (Alias name value)
+        | isDigit v -> Just (Primary (getGroup name) name value)
+        | isAlpha v -> Just (Alias (getGroup name) name value)
         | otherwise -> Nothing
     _ -> Nothing
   where
-    isSuffixOf' suffix str = drop (length str - length suffix) str == suffix
+    getGroup s =
+        snd
+            . fromMaybe (error $ "no prefix matched: " <> s)
+            . find ((`isPrefixOf` s) . fst)
+            $ concatMap (\g -> (,g.typeName) <$> g.prefixes) groups
 
 -- | Parse the header file, returning all defines.
-parseHeader :: String -> [Define]
-parseHeader = mapMaybe parseLine . lines
+parseHeader :: String -> [(Name, (Group, [Define]))]
+parseHeader input =
+    Map.toList
+        . Map.fromListWith (\(g, a) (_, b) -> (g, a <> b))
+        . map (\d -> (d.grp, (fromMaybe (error "group not found") $ Map.lookup d.grp groupMap, [d])))
+        . mapMaybe parseLine
+        $ lines input
 
--- | Get the C name from a 'Define'.
-defineName :: Define -> String
-defineName (Primary n _) = n
-defineName (Alias n _) = n
-
--- | Check if a define belongs to a group.
-defInGroup :: Group -> Define -> Bool
-defInGroup grp def = any (`isPrefixOf` defineName def) (groupPrefixes grp)
-
--- | Deduplicate primaries: when multiple primaries share a value string,
--- keep the last one as the constructor and turn earlier ones into aliases.
--- This handles cases like @BTN_GAMEPAD 0x130@ followed by @BTN_SOUTH 0x130@,
--- where @BTN_SOUTH@ becomes the constructor and @BTN_GAMEPAD@ becomes an alias.
+{- | Deduplicate primaries: when multiple primaries share a value string,
+keep the last one as the constructor and turn earlier ones into aliases.
+This handles cases like @BTN_GAMEPAD 0x130@ followed by @BTN_SOUTH 0x130@,
+where @BTN_SOUTH@ becomes the constructor and @BTN_GAMEPAD@ becomes an alias.
+-}
 dedup :: [Define] -> [Define]
 dedup defs =
-    let -- First pass: find which name is the "winner" for each value (last one wins)
+    let
+        -- First pass: find which name is the "winner" for each value (last one wins)
         valueToName :: Map String String
-        valueToName = foldl'
-            (\m d -> case d of
-                Primary name val -> Map.insert val name m
-                Alias _ _ -> m
-            )
-            Map.empty
-            defs
-
+        valueToName =
+            foldl'
+                ( \m d -> case d of
+                    Primary _ name val -> Map.insert val name m
+                    Alias _ _ _ -> m
+                )
+                Map.empty
+                defs
         -- Second pass: convert losers into aliases pointing to the winner
         convert :: Define -> Define
-        convert (Primary name val) =
+        convert (Primary grp name val) =
             let winner = valueToName Map.! val
-            in if name == winner
-                then Primary name val
-                else Alias name winner
+             in if name == winner
+                    then Primary grp name val
+                    else Alias grp name winner
         convert a@Alias{} = a
-    in map convert defs
+     in
+        map convert defs
 
--- | Transform a C name like @KEY_LEFT_SHIFT@ into a Haskell constructor name like @KeyLeftShift@.
-toCamelCase :: [String] -> String -> String
-toCamelCase prefixes cName =
-    let (haskPrefix, rest) = stripPrefix' prefixes cName
-        segments = splitOn '_' rest
-    in haskPrefix ++ concatMap titleCase segments
-  where
-    stripPrefix' [] n = ("", n)
-    stripPrefix' (p : ps) n
-        | p `isPrefixOf` n = (prefixToCamel p, drop (length p) n)
-        | otherwise = stripPrefix' ps n
-
-    prefixToCamel p =
-        let segs = filter (not . null) $ splitOn '_' p
-        in concatMap titleCase segs
-
-    titleCase [] = []
-    titleCase (c : cs) = toUpper c : map toLower cs
-
-splitOn :: Char -> String -> [String]
-splitOn _ [] = []
-splitOn sep s =
-    let (w, rest) = break (== sep) s
-    in w : case rest of
-        [] -> []
-        (_ : rest') -> splitOn sep rest'
-
--- | Transform a C name like @KEY_ESC@ into the hs-bindgen generated name like @kEY_ESC@.
-toRawName :: String -> String
-toRawName [] = []
-toRawName (c : cs) = toLower c : cs
-
--- | Generate all declarations for all groups.
 generateCodes :: Q [Dec]
 generateCodes = do
-    contents <- runIO $ readFile "/nix/store/7iwv8dcgsjmkrnn752hnfdxh3f7wahmd-linux-headers-6.16.7/include/linux/input-event-codes.h"
-    let defs = parseHeader contents
-    concat <$> mapM (generateGroup defs) groups
+    -- oh yeah, this doesn't do anything unless it's in the cabal file
+    -- addDependentFile file
+    contents <- runIO $ readFile file
+    -- for_ groups \grp -> putDoc (DeclDoc grp.typeName) grp.doc
+    pure $ concatMap (uncurry generateGroup . snd) $ parseHeader contents
+  where
+    -- cp /nix/store/7iwv8dcgsjmkrnn752hnfdxh3f7wahmd-linux-headers-6.16.7/include/linux/input-event-codes.h codes.h
+    -- file = "codes.h"
+    file = "/nix/store/7iwv8dcgsjmkrnn752hnfdxh3f7wahmd-linux-headers-6.16.7/include/linux/input-event-codes.h"
 
--- | Generate declarations for a single group: data type, SimpleEnum instance, and pattern synonyms.
-generateGroup :: [Define] -> Group -> Q [Dec]
-generateGroup allDefs grp = do
-    let myDefs = dedup $ filter (defInGroup grp) allDefs
-        primaries = [n | Primary n _ <- myDefs]
-        aliases = [(a, t) | Alias a t <- myDefs]
-        prefixes = groupPrefixes grp
-        tyName = mkName (groupTypeName grp)
-        conNames = map (\n -> mkName (toCamelCase prefixes n)) primaries
+generateGroup :: Group -> [Define] -> [Dec]
+generateGroup grp defs =
+    [ dataType grp.typeName primaries
+    , simpleEnumInstance grp.typeName primaries
+    ]
+        <> concatMap (aliasPatternSynonym grp.typeName) aliases
+  where
+    (primaries, aliases) =
+        partitionEithers $
+            dedup defs <&> \case
+                Primary _ n _ ->
+                    Left (mkName $ toBindgenName n, mkName $ toConstructorName n)
+                Alias _ a t ->
+                    Right (mkName $ toConstructorName a, mkName $ toConstructorName t)
 
-    dataDec <- generateDataDec tyName conNames (groupDoc grp)
-    enumInst <- generateSimpleEnumInst tyName primaries prefixes
-    patSyns <- concat <$> mapM (generatePatSyn tyName prefixes) aliases
-    pure $ dataDec ++ enumInst ++ patSyns
+dataType :: Name -> [(Name, Name)] -> Dec
+dataType tyName conNames =
+    DataD
+        []
+        tyName
+        []
+        Nothing
+        (map (flip NormalC [] . snd) conNames)
+        [DerivClause Nothing (map ConT [''Eq, ''Ord, ''Read, ''Show])]
 
--- | Generate: @data TypeName = Con1 | Con2 | ... deriving (Bounded, Eq, Ord, Read, Show)@
-generateDataDec :: Name -> [Name] -> String -> Q [Dec]
-generateDataDec tyName conNames _doc = do
-    let cons = map (\n -> NormalC n []) conNames
-        derivs = [DerivClause Nothing (map ConT [''Bounded, ''Eq, ''Ord, ''Read, ''Show])]
-    pure [DataD [] tyName [] Nothing cons derivs]
-
--- | Generate a @SimpleEnum@ instance for the given type.
-generateSimpleEnumInst :: Name -> [String] -> [String] -> Q [Dec]
-generateSimpleEnumInst tyName primaries prefixes = do
-    let simpleEnumName = mkName "SimpleEnum"
-        enumerateBody =
-            ListE [ConE (mkName (toCamelCase prefixes p)) | p <- primaries]
-
-        nName = mkName "n"
-        toEnumClauses =
-            let guardedBody = map
-                    (\p ->
-                        let rawN = mkName (toRawName p)
-                            conN = mkName (toCamelCase prefixes p)
-                        in ( NormalG (InfixE (Just (VarE nName))
-                                            (VarE '(==))
-                                            (Just (AppE (VarE 'fromIntegral) (VarE rawN))))
-                           , AppE (ConE 'Just) (ConE conN)
-                           )
+simpleEnumInstance :: Name -> [(Name, Name)] -> Dec
+simpleEnumInstance tyName conNames =
+    InstanceD
+        Nothing
+        []
+        (AppT (ConT (mkName "SimpleEnum")) (ConT tyName))
+        [ FunD
+            (mkName "enumerate'")
+            [ Clause
+                []
+                (NormalB (ListE $ map (ConE . snd) conNames))
+                []
+            ]
+        , FunD
+            (mkName "toEnum'")
+            [ let nName = mkName "n"
+               in Clause
+                    [VarP nName]
+                    ( GuardedB
+                        ( map
+                            ( \(raw, camel) ->
+                                ( NormalG
+                                    ( InfixE
+                                        (Just (VarE nName))
+                                        (VarE '(==))
+                                        (Just (AppE (VarE 'fromIntegral) (VarE raw)))
+                                    )
+                                , AppE (ConE 'Just) (ConE camel)
+                                )
+                            )
+                            conNames
+                            <> [(NormalG (VarE 'otherwise), ConE 'Nothing)]
+                        )
                     )
-                    primaries
-                otherwiseGuard =
-                    ( NormalG (VarE 'otherwise)
-                    , ConE 'Nothing
+                    []
+            ]
+        , FunD
+            (mkName "fromEnum'")
+            [ Clause
+                []
+                ( NormalB
+                    ( LamCaseE
+                        ( map
+                            ( \(raw, camel) ->
+                                Match
+                                    (ConP camel [] [])
+                                    (NormalB (AppE (VarE 'fromIntegral) (VarE raw)))
+                                    []
+                            )
+                            conNames
+                        )
                     )
-            in [Clause [VarP nName] (GuardedB (guardedBody ++ [otherwiseGuard])) []]
-
-        fromEnumMatches = map
-            (\p ->
-                let rawN = mkName (toRawName p)
-                    conN = mkName (toCamelCase prefixes p)
-                in Match (ConP conN [] []) (NormalB (AppE (VarE 'fromIntegral) (VarE rawN))) []
-            )
-            primaries
-        fromEnumBody = LamCaseE fromEnumMatches
-
-    pure
-        [ InstanceD Nothing []
-            (AppT (ConT simpleEnumName) (ConT tyName))
-            [ FunD (mkName "enumerate'") [Clause [] (NormalB enumerateBody) []]
-            , FunD (mkName "toEnum'") toEnumClauses
-            , FunD (mkName "fromEnum'") [Clause [] (NormalB fromEnumBody) []]
+                )
+                []
             ]
         ]
 
--- | Generate a pattern synonym for an alias.
-generatePatSyn :: Name -> [String] -> (String, String) -> Q [Dec]
-generatePatSyn tyName prefixes (aliasName, targetName) = do
-    let aliasConName = mkName (toCamelCase prefixes aliasName)
-        targetConName = mkName (toCamelCase prefixes targetName)
-        patSynSig = PatSynSigD aliasConName (ConT tyName)
-        patSynDec = PatSynD aliasConName (PrefixPatSyn []) ImplBidir (ConP targetConName [] [])
-    pure [patSynSig, patSynDec]
+aliasPatternSynonym :: Name -> (Name, Name) -> [Dec]
+aliasPatternSynonym tyName (aliasName, targetName) =
+    [ PatSynSigD aliasName (ConT tyName)
+    , PatSynD aliasName (PrefixPatSyn []) ImplBidir (ConP targetName [] [])
+    ]
+
+-- KEY_LEFT_SHIFT -> KeyLeftShift
+toConstructorName :: String -> String
+toConstructorName = concatMap titleCase . splitOn "_"
+  where
+    titleCase = \case
+        [] -> []
+        c : cs -> toUpper c : map toLower cs
+
+-- KEY_LEFT_SHIFT -> kEY_LEFT_SHIFT
+toBindgenName :: String -> String
+toBindgenName = \case
+    [] -> []
+    (c : cs) -> toLower c : cs
