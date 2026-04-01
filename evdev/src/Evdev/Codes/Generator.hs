@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE MultilineStrings #-}
 {-# LANGUAGE OverloadedRecordDot #-}
@@ -15,13 +16,13 @@ import Data.List.Extra
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Maybe
-import Data.Tuple.Extra
 import Language.Haskell.TH
+import Text.Read
 
-groups :: [Group]
+groups :: [TypeInfo]
 groups =
-    [ Group
-        { typeName = mkName "EventType"
+    [ TypeInfo
+        { name = TypeName $ mkName "EventType"
         , prefixes = ["EV"]
         , doc =
             """
@@ -29,80 +30,80 @@ groups =
             So you're unlikely to need to use these directly (C doesn't have ADTs - we do).
             """
         }
-    , Group
-        { typeName = mkName "SyncEvent"
+    , TypeInfo
+        { name = TypeName $ mkName "SyncEvent"
         , prefixes = ["SYN"]
         , doc =
             """
             Synchronization events
             """
         }
-    , Group
-        { typeName = mkName "Key"
+    , TypeInfo
+        { name = TypeName $ mkName "Key"
         , prefixes = ["KEY", "BTN"]
         , doc =
             """
             Keys and buttons
             """
         }
-    , Group
-        { typeName = mkName "RelativeAxis"
+    , TypeInfo
+        { name = TypeName $ mkName "RelativeAxis"
         , prefixes = ["REL"]
         , doc =
             """
             Relative changes
             """
         }
-    , Group
-        { typeName = mkName "AbsoluteAxis"
+    , TypeInfo
+        { name = TypeName $ mkName "AbsoluteAxis"
         , prefixes = ["ABS"]
         , doc =
             """
             Absolute changes
             """
         }
-    , Group
-        { typeName = mkName "SwitchEvent"
+    , TypeInfo
+        { name = TypeName $ mkName "SwitchEvent"
         , prefixes = ["SW"]
         , doc =
             """
             Stateful binary switches
             """
         }
-    , Group
-        { typeName = mkName "MiscEvent"
+    , TypeInfo
+        { name = TypeName $ mkName "MiscEvent"
         , prefixes = ["MSC"]
         , doc =
             """
             Miscellaneous
             """
         }
-    , Group
-        { typeName = mkName "LEDEvent"
+    , TypeInfo
+        { name = TypeName $ mkName "LEDEvent"
         , prefixes = ["LED"]
         , doc =
             """
             LEDs
             """
         }
-    , Group
-        { typeName = mkName "RepeatEvent"
+    , TypeInfo
+        { name = TypeName $ mkName "RepeatEvent"
         , prefixes = ["REP"]
         , doc =
             """
             Specifying autorepeating events
             """
         }
-    , Group
-        { typeName = mkName "SoundEvent"
+    , TypeInfo
+        { name = TypeName $ mkName "SoundEvent"
         , prefixes = ["SND"]
         , doc =
             """
             For simple sound output devices
             """
         }
-    , Group
-        { typeName = mkName "DeviceProperty"
+    , TypeInfo
+        { name = TypeName $ mkName "DeviceProperty"
         , prefixes = ["INPUT_PROP"]
         , doc =
             """
@@ -111,52 +112,52 @@ groups =
         }
     ]
 
--- | A define from the header file: either a primary (value is a number) or an alias (value is another name).
-data Define
-    = Primary {grp :: Name, name :: String, val :: String}
-    | Alias {grp :: Name, name :: String, target :: String}
-    deriving (Show)
-
--- | Configuration for a group of defines that map to a single Haskell type.
-data Group = Group
-    { typeName :: Name
+data TypeInfo = TypeInfo
+    { name :: TypeName
     , prefixes :: [String]
     , doc :: String
     }
 
-groupMap :: Map Name Group
-groupMap = Map.fromList $ ((.typeName) &&& id) <$> groups
-
--- | Names to skip when parsing the header.
-skippedNames :: [String]
-skippedNames = ["KEY_MIN_INTERESTING"]
+data Define
+    = Primary {name :: MacroName, value :: Int}
+    | Alias {name :: MacroName, target :: MacroName}
+    deriving (Show)
 
 -- | Parse a single @#define@ line.
 parseLine :: String -> Maybe Define
 parseLine line = case words line of
-    ("#define" : name : value@(v : _) : _)
-        | any (`isSuffixOf` name) ["_MAX", "_CNT"] -> Nothing
-        | name `elem` skippedNames -> Nothing
-        | name == "_INPUT_EVENT_CODES_H" -> Nothing
-        | isDigit v -> Just (Primary (getGroup name) name value)
-        | isAlpha v -> Just (Alias (getGroup name) name value)
-        | otherwise -> Nothing
+    ("#define" : k@(MacroName -> name) : v : _)
+        | any (`isSuffixOf` k) metaSuffices -> Nothing
+        | Just value <- readMaybe v -> Just Primary{name, value}
+        | otherwise -> Just Alias{name, target = MacroName v}
     _ -> Nothing
   where
-    getGroup s =
-        snd
-            . fromMaybe (error $ "no prefix matched: " <> s)
-            . find ((`isPrefixOf` s) . fst)
-            $ concatMap (\g -> (,g.typeName) <$> g.prefixes) groups
+    metaSuffices =
+        [ "_MAX"
+        , "_CNT"
+        , "_MIN_INTERESTING"
+        ]
 
--- | Parse the header file, returning all defines.
-parseHeader :: String -> [(Name, (Group, [Define]))]
+parseHeader :: String -> [(TypeInfo, [Define])]
 parseHeader input =
-    Map.toList
-        . Map.fromListWith (\(g, a) (_, b) -> (g, a <> b))
-        . map (\d -> (d.grp, (fromMaybe (error "group not found") $ Map.lookup d.grp groupMap, [d])))
+    map snd
+        . Map.toList
+        . Map.fromListWith (\(t, a) (_, b) -> (t, a <> b))
+        . map
+            ( \d ->
+                let
+                    MacroName s = d.name
+                    ty =
+                        snd
+                            . fromMaybe (error $ "no prefix matched: " <> show d.name)
+                            $ find (\(p, _) -> p `isPrefixOf` s) prefixes
+                 in
+                    (ty.name, (ty, [d]))
+            )
         . mapMaybe parseLine
         $ lines input
+  where
+    prefixes = concatMap (\g -> (,g) <$> g.prefixes) groups
 
 {- | Deduplicate primaries: when multiple primaries share a value string,
 keep the last one as the constructor and turn earlier ones into aliases.
@@ -167,65 +168,69 @@ dedup :: [Define] -> [Define]
 dedup defs =
     let
         -- First pass: find which name is the "winner" for each value (last one wins)
-        valueToName :: Map String String
+        valueToName :: Map Int MacroName
         valueToName =
             foldl'
                 ( \m d -> case d of
-                    Primary _ name val -> Map.insert val name m
-                    Alias _ _ _ -> m
+                    Primary name val -> Map.insert val name m
+                    Alias _ _ -> m
                 )
                 Map.empty
                 defs
         -- Second pass: convert losers into aliases pointing to the winner
         convert :: Define -> Define
-        convert (Primary grp name val) =
+        convert (Primary name val) =
             let winner = valueToName Map.! val
              in if name == winner
-                    then Primary grp name val
-                    else Alias grp name winner
+                    then Primary name val
+                    else Alias name winner
         convert a@Alias{} = a
      in
         map convert defs
+
+newtype MacroName = MacroName String deriving newtype (Eq, Ord, Show)
+newtype TypeName = TypeName Name deriving newtype (Eq, Ord, Show)
+newtype BindgenName = BindgenName Name deriving newtype (Eq, Ord, Show)
+newtype ConstructorName = ConstructorName Name deriving newtype (Eq, Ord, Show)
+newtype PatternName = PatternName Name deriving newtype (Eq, Ord, Show)
 
 generateCodes :: Q [Dec]
 generateCodes = do
     -- oh yeah, this doesn't do anything unless it's in the cabal file
     -- addDependentFile file
     contents <- runIO $ readFile file
-    -- for_ groups \grp -> putDoc (DeclDoc grp.typeName) grp.doc
-    pure $ concatMap (uncurry generateGroup . snd) $ parseHeader contents
+    -- for_ groups \TypeInfo{name = TypeName name, doc} -> putDoc (DeclDoc name) doc
+    pure $ concatMap (uncurry generateType) $ parseHeader contents
   where
     -- cp /nix/store/7iwv8dcgsjmkrnn752hnfdxh3f7wahmd-linux-headers-6.16.7/include/linux/input-event-codes.h codes.h
     -- file = "codes.h"
     file = "/nix/store/7iwv8dcgsjmkrnn752hnfdxh3f7wahmd-linux-headers-6.16.7/include/linux/input-event-codes.h"
 
-generateGroup :: Group -> [Define] -> [Dec]
-generateGroup grp defs =
-    [ dataType grp.typeName primaries
-    , simpleEnumInstance grp.typeName primaries
+generateType :: TypeInfo -> [Define] -> [Dec]
+generateType ty defs =
+    [ dataType ty.name $ map snd primaries
+    , simpleEnumInstance ty.name primaries
     ]
-        <> concatMap (aliasPatternSynonym grp.typeName) aliases
+        <> concatMap (patternSynonym ty.name) aliases
   where
     (primaries, aliases) =
         partitionEithers $
             dedup defs <&> \case
-                Primary _ n _ ->
-                    Left (mkName $ toBindgenName n, mkName $ toConstructorName n)
-                Alias _ a t ->
-                    Right (mkName $ toConstructorName a, mkName $ toConstructorName t)
+                Primary n _ -> Left (toBindgenName n, toConstructorName n)
+                Alias a t -> Right (toPatternName a, toConstructorName t)
 
-dataType :: Name -> [(Name, Name)] -> Dec
-dataType tyName conNames =
+dataType :: TypeName -> [ConstructorName] -> Dec
+dataType (TypeName tyName) conNames =
     DataD
         []
         tyName
         []
         Nothing
-        (map (flip NormalC [] . snd) conNames)
+        (conNames <&> \(ConstructorName s) -> NormalC s [])
         [DerivClause Nothing (map ConT [''Eq, ''Ord, ''Read, ''Show])]
 
-simpleEnumInstance :: Name -> [(Name, Name)] -> Dec
-simpleEnumInstance tyName conNames =
+simpleEnumInstance :: TypeName -> [(BindgenName, ConstructorName)] -> Dec
+simpleEnumInstance (TypeName tyName) conNames =
     InstanceD
         Nothing
         []
@@ -234,24 +239,24 @@ simpleEnumInstance tyName conNames =
             (mkName "enumerate'")
             [ Clause
                 []
-                (NormalB (ListE $ map (ConE . snd) conNames))
+                (NormalB (ListE $ conNames <&> \(_, ConstructorName s) -> ConE s))
                 []
             ]
         , FunD
             (mkName "toEnum'")
-            [ let nName = mkName "n"
+            [ let n = mkName "n"
                in Clause
-                    [VarP nName]
+                    [VarP n]
                     ( GuardedB
                         ( map
-                            ( \(raw, camel) ->
+                            ( \(BindgenName val, ConstructorName con) ->
                                 ( NormalG
                                     ( InfixE
-                                        (Just (VarE nName))
+                                        (Just (VarE n))
                                         (VarE '(==))
-                                        (Just (AppE (VarE 'fromIntegral) (VarE raw)))
+                                        (Just (AppE (VarE 'fromIntegral) (VarE val)))
                                     )
-                                , AppE (ConE 'Just) (ConE camel)
+                                , AppE (ConE 'Just) (ConE con)
                                 )
                             )
                             conNames
@@ -267,10 +272,10 @@ simpleEnumInstance tyName conNames =
                 ( NormalB
                     ( LamCaseE
                         ( map
-                            ( \(raw, camel) ->
+                            ( \(BindgenName val, ConstructorName con) ->
                                 Match
-                                    (ConP camel [] [])
-                                    (NormalB (AppE (VarE 'fromIntegral) (VarE raw)))
+                                    (ConP con [] [])
+                                    (NormalB (AppE (VarE 'fromIntegral) (VarE val)))
                                     []
                             )
                             conNames
@@ -281,22 +286,24 @@ simpleEnumInstance tyName conNames =
             ]
         ]
 
-aliasPatternSynonym :: Name -> (Name, Name) -> [Dec]
-aliasPatternSynonym tyName (aliasName, targetName) =
-    [ PatSynSigD aliasName (ConT tyName)
-    , PatSynD aliasName (PrefixPatSyn []) ImplBidir (ConP targetName [] [])
+patternSynonym :: TypeName -> (PatternName, ConstructorName) -> [Dec]
+patternSynonym (TypeName tyName) (PatternName pat, ConstructorName con) =
+    [ PatSynSigD pat (ConT tyName)
+    , PatSynD pat (PrefixPatSyn []) ImplBidir (ConP con [] [])
     ]
 
 -- KEY_LEFT_SHIFT -> KeyLeftShift
-toConstructorName :: String -> String
-toConstructorName = concatMap titleCase . splitOn "_"
+toConstructorName :: MacroName -> ConstructorName
+toPatternName :: MacroName -> PatternName
+(toConstructorName, toPatternName) = (f ConstructorName, f PatternName)
   where
+    f c (MacroName s) = c . mkName . concatMap titleCase . splitOn "_" $ s
     titleCase = \case
         [] -> []
         c : cs -> toUpper c : map toLower cs
 
 -- KEY_LEFT_SHIFT -> kEY_LEFT_SHIFT
-toBindgenName :: String -> String
-toBindgenName = \case
+toBindgenName :: MacroName -> BindgenName
+toBindgenName (MacroName s) = BindgenName $ mkName case s of
     [] -> []
     (c : cs) -> toLower c : cs
