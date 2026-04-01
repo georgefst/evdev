@@ -10,18 +10,11 @@ import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Maybe
 import Language.Haskell.TH
-import Numeric
 
--- | A raw define from the header file.
-data RawDefine
-    = RawPrimary String Int -- ^ Name and numeric value
-    | RawAlias String String -- ^ Alias name and target name
-    deriving (Show)
-
--- | A processed define, after deduplication.
+-- | A define from the header file: either a primary (value is a number) or an alias (value is another name).
 data Define
-    = Primary String -- ^ A name that should become a constructor
-    | Alias String String -- ^ An alias name pointing to a target name
+    = Primary String String -- ^ Name and raw value string (for dedup grouping)
+    | Alias String String -- ^ Alias name and target name
     deriving (Show)
 
 -- | Configuration for a group of defines that map to a single Haskell type.
@@ -51,68 +44,57 @@ skippedNames :: [String]
 skippedNames = ["KEY_MIN_INTERESTING"]
 
 -- | Parse a single @#define@ line.
-parseLine :: String -> Maybe RawDefine
+parseLine :: String -> Maybe Define
 parseLine line = case words line of
     ("#define" : name : value : _)
         | any (`isSuffixOf'` name) ["_MAX", "_CNT"] -> Nothing
         | name `elem` skippedNames -> Nothing
         | name == "_INPUT_EVENT_CODES_H" -> Nothing
-        | Just n <- parseNumericValue value -> Just (RawPrimary name n)
-        | "(" `isPrefixOf` value -> Nothing
-        | all (\c -> isAlphaNum c || c == '_') value -> Just (RawAlias name value)
+        | isDigit (head value) -> Just (Primary name value)
+        | isAlpha (head value) -> Just (Alias name value)
         | otherwise -> Nothing
     _ -> Nothing
   where
     isSuffixOf' suffix str = drop (length str - length suffix) str == suffix
 
--- | Parse a numeric value (decimal or hex).
-parseNumericValue :: String -> Maybe Int
-parseNumericValue ('0' : 'x' : rest)
-    | all isHexDigit rest, [(n, "")] <- readHex rest = Just n
-parseNumericValue ('0' : 'X' : rest)
-    | all isHexDigit rest, [(n, "")] <- readHex rest = Just n
-parseNumericValue s
-    | all isDigit s = Just (read s)
-parseNumericValue _ = Nothing
-
--- | Parse the header file, returning all raw defines.
-parseHeader :: String -> [RawDefine]
+-- | Parse the header file, returning all defines.
+parseHeader :: String -> [Define]
 parseHeader = mapMaybe parseLine . lines
 
--- | Get the C name from a 'RawDefine'.
-rawDefineName :: RawDefine -> String
-rawDefineName (RawPrimary n _) = n
-rawDefineName (RawAlias n _) = n
+-- | Get the C name from a 'Define'.
+defineName :: Define -> String
+defineName (Primary n _) = n
+defineName (Alias n _) = n
 
 -- | Check if a define belongs to a group.
-defInGroup :: Group -> RawDefine -> Bool
-defInGroup grp def = any (`isPrefixOf` rawDefineName def) (groupPrefixes grp)
+defInGroup :: Group -> Define -> Bool
+defInGroup grp def = any (`isPrefixOf` defineName def) (groupPrefixes grp)
 
--- | Deduplicate primaries: when multiple primaries share a numeric value,
+-- | Deduplicate primaries: when multiple primaries share a value string,
 -- keep the last one as the constructor and turn earlier ones into aliases.
 -- This handles cases like @BTN_GAMEPAD 0x130@ followed by @BTN_SOUTH 0x130@,
 -- where @BTN_SOUTH@ becomes the constructor and @BTN_GAMEPAD@ becomes an alias.
-dedup :: [RawDefine] -> [Define]
-dedup rawDefs =
+dedup :: [Define] -> [Define]
+dedup defs =
     let -- First pass: find which name is the "winner" for each value (last one wins)
-        valueToName :: Map Int String
+        valueToName :: Map String String
         valueToName = foldl'
-            (\m rd -> case rd of
-                RawPrimary name val -> Map.insert val name m
-                RawAlias _ _ -> m
+            (\m d -> case d of
+                Primary name val -> Map.insert val name m
+                Alias _ _ -> m
             )
             Map.empty
-            rawDefs
+            defs
 
-        -- Second pass: convert, turning losers into aliases
-        convert :: RawDefine -> Define
-        convert (RawPrimary name val) =
+        -- Second pass: convert losers into aliases pointing to the winner
+        convert :: Define -> Define
+        convert (Primary name val) =
             let winner = valueToName Map.! val
             in if name == winner
-                then Primary name
+                then Primary name val
                 else Alias name winner
-        convert (RawAlias name target) = Alias name target
-    in map convert rawDefs
+        convert a@Alias{} = a
+    in map convert defs
 
 -- | Transform a C name like @KEY_LEFT_SHIFT@ into a Haskell constructor name like @KeyLeftShift@.
 toCamelCase :: [String] -> String -> String
@@ -150,15 +132,14 @@ toRawName (c : cs) = toLower c : cs
 generateCodes :: Q [Dec]
 generateCodes = do
     contents <- runIO $ readFile "/nix/store/7iwv8dcgsjmkrnn752hnfdxh3f7wahmd-linux-headers-6.16.7/include/linux/input-event-codes.h"
-    let rawDefs = parseHeader contents
-    concat <$> mapM (generateGroup rawDefs) groups
+    let defs = parseHeader contents
+    concat <$> mapM (generateGroup defs) groups
 
 -- | Generate declarations for a single group: data type, SimpleEnum instance, and pattern synonyms.
-generateGroup :: [RawDefine] -> Group -> Q [Dec]
-generateGroup allRawDefs grp = do
-    let myRawDefs = filter (defInGroup grp) allRawDefs
-        myDefs = dedup myRawDefs
-        primaries = [n | Primary n <- myDefs]
+generateGroup :: [Define] -> Group -> Q [Dec]
+generateGroup allDefs grp = do
+    let myDefs = dedup $ filter (defInGroup grp) allDefs
+        primaries = [n | Primary n _ <- myDefs]
         aliases = [(a, t) | Alias a t <- myDefs]
         prefixes = groupPrefixes grp
         tyName = mkName (groupTypeName grp)
