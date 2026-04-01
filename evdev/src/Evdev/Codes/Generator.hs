@@ -46,12 +46,12 @@ skippedNames = ["KEY_MIN_INTERESTING"]
 -- | Parse a single @#define@ line.
 parseLine :: String -> Maybe Define
 parseLine line = case words line of
-    ("#define" : name : value : _)
+    ("#define" : name : value@(v : _) : _)
         | any (`isSuffixOf'` name) ["_MAX", "_CNT"] -> Nothing
         | name `elem` skippedNames -> Nothing
         | name == "_INPUT_EVENT_CODES_H" -> Nothing
-        | isDigit (head value) -> Just (Primary name value)
-        | isAlpha (head value) -> Just (Alias name value)
+        | isDigit v -> Just (Primary name value)
+        | isAlpha v -> Just (Alias name value)
         | otherwise -> Nothing
     _ -> Nothing
   where
