@@ -11,6 +11,7 @@ import Data.Maybe
 import Data.Time
 import Evdev
 import Evdev.Codes
+import Evdev.Raw
 import qualified Evdev.Uinput as Uinput
 import Foreign.C
 import RawFilePath
@@ -19,6 +20,7 @@ import System.IO.Error
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
+import Util
 
 main :: IO ()
 main = defaultMain $ testGroup "Tests" [smoke, inverses]
@@ -30,7 +32,7 @@ smoke :: TestTree
 smoke = testCase "Smoke" do
     start <- newEmptyMVar
     let duName = "evdev-test-device"
-        keys = [Key1 .. Key0]
+        keys = mapMaybe toEnum' [kEY_1 .. kEY_0]
         evs = concatMap ((<$> [Pressed, Released]) . KeyEvent) keys
     assertEqual "10 keys" 10 $ length keys
     du <- Uinput.newDevice duName Uinput.defaultDeviceOpts{Uinput.keys}
@@ -70,7 +72,7 @@ inverses =
                     -- 'toCEventData' takes all values for sync events to 0 - fine as they don't mean anything
                     and
                         [ t == t'
-                        , fromEnum t == fromEnum EvSyn
+                        , t == fromEnum' EvSyn
                         , c == c'
                         , v' == 0
                         ]

@@ -1,6 +1,5 @@
 {-# LANGUAGE LexicalNegation #-}
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# OPTIONS_GHC -fno-state-hack #-}
 
 -- | The main module for working with devices and events.
 module Evdev (
@@ -53,7 +52,6 @@ module Evdev (
     fromCTimeVal,
 ) where
 
-import Control.Arrow ((&&&))
 import Control.Monad (filterM, join)
 import Data.ByteString (packCString)
 import Data.ByteString.Char8 (ByteString, pack)
@@ -61,9 +59,6 @@ import Data.Coerce (coerce)
 import Data.Function ((&))
 import Data.Functor ((<&>))
 import Data.Int (Int32)
-import Data.List.Extra (enumerate)
-import Data.Map ((!?), Map)
-import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Ratio ((%))
 import Data.Set (Set)
@@ -188,16 +183,16 @@ fromCEvent Raw.Input_event{type', code, value, time} =
         (fromCTimeVal time)
 
 fromCEventData :: (Word16, Word16, Int32) -> EventData
-fromCEventData (t, EventCode -> c, EventValue -> v) = fromMaybe (UnknownEvent t c v) $ toEnum' t >>= \case
-    EvSyn -> SyncEvent     <$> toEnum' c
-    EvKey -> KeyEvent      <$> toEnum' c <*> toEnum' v
-    EvRel -> RelativeEvent <$> toEnum' c <*> pure v
-    EvAbs -> AbsoluteEvent <$> toEnum' c <*> pure v
-    EvMsc -> MiscEvent     <$> toEnum' c <*> pure v
-    EvSw  -> SwitchEvent   <$> toEnum' c <*> pure v
-    EvLed -> LEDEvent      <$> toEnum' c <*> pure v
-    EvSnd -> SoundEvent    <$> toEnum' c <*> pure v
-    EvRep -> RepeatEvent   <$> toEnum' c <*> pure v
+fromCEventData (t, c'@(EventCode -> c), v'@(EventValue -> v)) = fromMaybe (UnknownEvent t c v) $ toEnum' t >>= \case
+    EvSyn -> SyncEvent     <$> toEnum' c'
+    EvKey -> KeyEvent      <$> toEnum' c' <*> case v' of 0 -> Just Released; 1-> Just Pressed; 2-> Just Repeated; _-> Nothing
+    EvRel -> RelativeEvent <$> toEnum' c' <*> pure v
+    EvAbs -> AbsoluteEvent <$> toEnum' c' <*> pure v
+    EvMsc -> MiscEvent     <$> toEnum' c' <*> pure v
+    EvSw  -> SwitchEvent   <$> toEnum' c' <*> pure v
+    EvLed -> LEDEvent      <$> toEnum' c' <*> pure v
+    EvSnd -> SoundEvent    <$> toEnum' c' <*> pure v
+    EvRep -> RepeatEvent   <$> toEnum' c' <*> pure v
     EvFf  -> Just $ ForceFeedbackEvent c v
     EvPwr -> Just $ PowerEvent c v
     EvFfStatus -> Just $ ForceFeedbackStatusEvent c v
@@ -209,18 +204,18 @@ toCEventData :: EventData -> (Word16, Word16, Int32)
 toCEventData = \case
     -- from kernel docs, 'EV_SYN event values are undefined' - we always seem to see 0, so may as well use that
     SyncEvent                (fromEnum' -> c) -> (fromEnum' EvSyn, c, 0)
-    KeyEvent                 (fromEnum' -> c) (fromEnum' -> v) -> (fromEnum' EvKey, c, v)
-    RelativeEvent            (fromEnum' -> c) (fromEnum' -> v) -> (fromEnum' EvRel, c, v)
-    AbsoluteEvent            (fromEnum' -> c) (fromEnum' -> v) -> (fromEnum' EvAbs, c, v)
-    MiscEvent                (fromEnum' -> c) (fromEnum' -> v) -> (fromEnum' EvMsc, c, v)
-    SwitchEvent              (fromEnum' -> c) (fromEnum' -> v) -> (fromEnum' EvSw,  c, v)
-    LEDEvent                 (fromEnum' -> c) (fromEnum' -> v) -> (fromEnum' EvLed, c, v)
-    SoundEvent               (fromEnum' -> c) (fromEnum' -> v) -> (fromEnum' EvSnd, c, v)
-    RepeatEvent              (fromEnum' -> c) (fromEnum' -> v) -> (fromEnum' EvRep, c, v)
-    ForceFeedbackEvent       (fromEnum' -> c) (fromEnum' -> v) -> (fromEnum' EvFf,  c, v)
-    PowerEvent               (fromEnum' -> c) (fromEnum' -> v) -> (fromEnum' EvPwr, c, v)
-    ForceFeedbackStatusEvent (fromEnum' -> c) (fromEnum' -> v) -> (fromEnum' EvFfStatus, c, v)
-    UnknownEvent             (fromEnum' -> t) (fromEnum' -> c) (fromEnum' -> v) -> (t, c, v)
+    KeyEvent                 (fromEnum' -> c) (fromIntegral . fromEnum -> v) -> (fromEnum' EvKey, c, v)
+    RelativeEvent            (fromEnum' -> c) (coerce -> v) -> (fromEnum' EvRel, c, v)
+    AbsoluteEvent            (fromEnum' -> c) (coerce -> v) -> (fromEnum' EvAbs, c, v)
+    MiscEvent                (fromEnum' -> c) (coerce -> v) -> (fromEnum' EvMsc, c, v)
+    SwitchEvent              (fromEnum' -> c) (coerce -> v) -> (fromEnum' EvSw,  c, v)
+    LEDEvent                 (fromEnum' -> c) (coerce -> v) -> (fromEnum' EvLed, c, v)
+    SoundEvent               (fromEnum' -> c) (coerce -> v) -> (fromEnum' EvSnd, c, v)
+    RepeatEvent              (fromEnum' -> c) (coerce -> v) -> (fromEnum' EvRep, c, v)
+    ForceFeedbackEvent       (coerce -> c) (coerce -> v) -> (fromEnum' EvFf,  c, v)
+    PowerEvent               (coerce -> c) (coerce -> v) -> (fromEnum' EvPwr, c, v)
+    ForceFeedbackStatusEvent (coerce -> c) (coerce -> v) -> (fromEnum' EvFfStatus, c, v)
+    UnknownEvent             t (coerce -> c) (coerce -> v) -> (t, c, v)
 
 fromCTimeVal :: Raw.Timeval -> DiffTime
 fromCTimeVal Raw.Timeval{tv_sec = s, tv_usec = us} =
@@ -278,11 +273,11 @@ deviceVersion :: Device -> IO Int
 deviceVersion = flip withForeignPtr (fmap fromIntegral . Raw.libevdev_get_id_version . ConstPtr) . cDevice
 
 deviceProperties :: Device -> IO [DeviceProperty]
-deviceProperties (Device dev _) = enumerate & filterM \prop -> withForeignPtr dev \p ->
+deviceProperties (Device dev _) = enumerate' & filterM \prop -> withForeignPtr dev \p ->
     toBool <$> Raw.libevdev_has_property (ConstPtr p) (fromEnum' prop)
 
 deviceEventTypes :: Device -> IO [EventType]
-deviceEventTypes (Device dev _) = enumerate & filterM \et -> withForeignPtr dev \p ->
+deviceEventTypes (Device dev _) = enumerate' & filterM \et -> withForeignPtr dev \p ->
     toBool <$> Raw.libevdev_has_event_type (ConstPtr p) (fromEnum' et)
 
 --TODO this is an imperfect API since '_val' is ignored entirely
@@ -332,28 +327,6 @@ setDeviceLED dev led val = cErrCallDev "setDeviceLED" dev $ withForeignPtr (cDev
 grabDevice' :: Raw.Libevdev_grab_mode -> Device -> IO ()
 grabDevice' mode dev = cErrCallDev "grabDevice" dev $
     withForeignPtr (cDevice dev) $ fmap Errno . flip Raw.libevdev_grab mode
-
-{-
-TODO this is a workaround until c2hs has a better story for enum conversions
-    when we remove it we can get rid of '-fno-state-hack'
-
-based on profiling, and Debug.Trace, it seems that 'enumMap' is computed no more times than necessary
-    (6 - number of combinations of a and k that it is called with)
-    but based on https://www.reddit.com/r/haskell/comments/grskne/help_reasoning_about_performance_memoization/,
-        it's possible that behaviour is worse without profiling on (argh...)
-
-open c2hs issue
-    we perhaps essentially want the `CEnum` class proposed at: https://github.com/haskell/c2hs/issues/78
-        but perhaps belonging (at least initially) in c2hs rather than base, for expediency
-        this doesn't necessarily consider enum defines though - discussion is around capturing the semantics of actual C enums
-    alternatively, monomorphic functions for each type, as with c2hs's with* functions
--}
-toEnum' :: forall k a. (Ord k, Enum k, Bounded a, Enum a) => k -> Maybe a
-toEnum' = (enumMap !?)
-  where
-    --TODO HashMap, IntMap?
-    enumMap :: Map k a
-    enumMap = Map.fromList $ map (toEnum . fromEnum &&& id) enumerate
 
 cErrCallDev :: CErrCall a => String -> Device -> IO a -> IO (CErrCallRes a)
 cErrCallDev f = cErrCall f . return . Just . devicePath

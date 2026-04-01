@@ -62,26 +62,26 @@ newDevice name DeviceOpts{..} = do
             unless (null cs) $ cec $ withForeignPtr dev \devPtr ->
                 Errno <$> Raw.libevdev_enable_event_type devPtr t'
             forM_ cs $ \c -> cec $ withForeignPtr dev \devPtr ->
-                Errno <$> Raw.libevdev_enable_event_code devPtr t' c
+                Errno <$> Raw.libevdev_enable_event_code devPtr t' (fromIntegral @Word16 @CUInt $ coerce c)
                     (ConstPtr $ maybe nullPtr (either castPtr castPtr) dataPtr)
           where
             t' = fromEnum' t
 
     mapM_
         (uncurry $ enable Nothing)
-        [ (EvKey, map fromEnum' keys)
-        , (EvRel, map fromEnum' relAxes)
-        , (EvMsc, map fromEnum' miscs)
-        , (EvSw, map fromEnum' switchs)
-        , (EvLed, map fromEnum' leds)
-        , (EvSnd, map fromEnum' sounds)
-        , (EvFf, map fromEnum' ffs)
-        , (EvPwr, map fromEnum' powers)
-        , (EvFfStatus, map fromEnum' ffStats)
+        [ (EvKey, map (EventCode . fromEnum') keys)
+        , (EvRel, map (EventCode . fromEnum') relAxes)
+        , (EvMsc, map (EventCode . fromEnum') miscs)
+        , (EvSw, map (EventCode . fromEnum') switchs)
+        , (EvLed, map (EventCode . fromEnum') leds)
+        , (EvSnd, map (EventCode . fromEnum') sounds)
+        , (EvFf, ffs)
+        , (EvPwr, powers)
+        , (EvFfStatus, ffStats)
         ]
 
     forM_ reps \(rep, n) -> with (fromIntegral n) \p ->
-        enable (Just $ Right p) EvRep [fromEnum' rep]
+        enable (Just $ Right p) EvRep [EventCode $ fromEnum' rep]
 
     forM_ absAxes \(axis, AbsInfo{..}) ->
         Raw.Input_absinfo
@@ -92,7 +92,7 @@ newDevice name DeviceOpts{..} = do
             , flat = coerce absFlat
             , resolution = coerce absResolution
             }
-            & flip with \ptr -> enable (Just $ Left ptr) EvAbs [fromEnum' axis]
+            & flip with \ptr -> enable (Just $ Left ptr) EvAbs [EventCode $ fromEnum' axis]
 
     withForeignPtr dev \devPtr -> alloca \pp -> do
         cec $ Errno <$> Raw.libevdev_uinput_create_from_device

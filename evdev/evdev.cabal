@@ -54,6 +54,7 @@ library
         Evdev.Raw
         Util
     other-modules:
+        Evdev.Codes.Generator
     hs-source-dirs: src
     c-sources:
         src-c/evdev-hs.c

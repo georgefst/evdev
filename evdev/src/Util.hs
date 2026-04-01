@@ -8,8 +8,17 @@ import Foreign.C (CString)
 import Foreign.C.Error (Errno (Errno), errnoToIOError)
 import System.Posix.ByteString (RawFilePath)
 
-fromEnum' :: (Num c, Enum a) => a -> c
-fromEnum' = fromIntegral . fromEnum
+{- | A modified form of `Enum`.
+Older versions of this library had some odd c2hs-based `Enum` instances.
+This was introduced to avoid silently breaking code which used those old versions.
+This type class is also easier to write instances for, particularly via code generation.
+-}
+class SimpleEnum a where
+    enumerate' :: [a]
+    -- | Returns `Nothing` when input is out of bounds.
+    toEnum' :: (Integral n) => n -> Maybe a
+    -- | Instances will typically use `fromInteger`, so e.g. will wrap around when converting a large enum to a `Word8`.
+    fromEnum' :: (Num n) => a -> n
 
 handleNull :: b -> (Ptr a -> b) -> Ptr a -> b
 handleNull def f p = if p == nullPtr then def else f p
