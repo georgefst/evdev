@@ -184,15 +184,15 @@ fromCEvent Raw.Input_event{type', code, value, time} =
 
 fromCEventData :: (Word16, Word16, Int32) -> EventData
 fromCEventData (t, c'@(EventCode -> c), v'@(EventValue -> v)) = fromMaybe (UnknownEvent t c v) $ toEnum' t >>= \case
-    EvSyn -> SyncEvent     <$> toEnum' c'
-    EvKey -> KeyEvent      <$> toEnum' c' <*> case v' of 0 -> Just Released; 1-> Just Pressed; 2-> Just Repeated; _-> Nothing
+    EvSyn -> SyncEvent <$> toEnum' c'
+    EvKey -> KeyEvent <$> toEnum' c' <*> case v' of 0 -> Just Released; 1-> Just Pressed; 2-> Just Repeated; _-> Nothing
     EvRel -> RelativeEvent <$> toEnum' c' <*> pure v
     EvAbs -> AbsoluteEvent <$> toEnum' c' <*> pure v
-    EvMsc -> MiscEvent     <$> toEnum' c' <*> pure v
-    EvSw  -> SwitchEvent   <$> toEnum' c' <*> pure v
-    EvLed -> LEDEvent      <$> toEnum' c' <*> pure v
-    EvSnd -> SoundEvent    <$> toEnum' c' <*> pure v
-    EvRep -> RepeatEvent   <$> toEnum' c' <*> pure v
+    EvMsc -> MiscEvent <$> toEnum' c' <*> pure v
+    EvSw  -> SwitchEvent <$> toEnum' c' <*> pure v
+    EvLed -> LEDEvent <$> toEnum' c' <*> pure v
+    EvSnd -> SoundEvent <$> toEnum' c' <*> pure v
+    EvRep -> RepeatEvent <$> toEnum' c' <*> pure v
     EvFf  -> Just $ ForceFeedbackEvent c v
     EvPwr -> Just $ PowerEvent c v
     EvFfStatus -> Just $ ForceFeedbackStatusEvent c v
@@ -203,19 +203,19 @@ toCEvent (Event e time) = uncurry3 (Raw.Input_event $ toCTimeVal time) (coerce $
 toCEventData :: EventData -> (Word16, Word16, Int32)
 toCEventData = \case
     -- from kernel docs, 'EV_SYN event values are undefined' - we always seem to see 0, so may as well use that
-    SyncEvent                (fromEnum' -> c) -> (fromEnum' EvSyn, c, 0)
-    KeyEvent                 (fromEnum' -> c) (fromIntegral . fromEnum -> v) -> (fromEnum' EvKey, c, v)
-    RelativeEvent            (fromEnum' -> c) (coerce -> v) -> (fromEnum' EvRel, c, v)
-    AbsoluteEvent            (fromEnum' -> c) (coerce -> v) -> (fromEnum' EvAbs, c, v)
-    MiscEvent                (fromEnum' -> c) (coerce -> v) -> (fromEnum' EvMsc, c, v)
-    SwitchEvent              (fromEnum' -> c) (coerce -> v) -> (fromEnum' EvSw,  c, v)
-    LEDEvent                 (fromEnum' -> c) (coerce -> v) -> (fromEnum' EvLed, c, v)
-    SoundEvent               (fromEnum' -> c) (coerce -> v) -> (fromEnum' EvSnd, c, v)
-    RepeatEvent              (fromEnum' -> c) (coerce -> v) -> (fromEnum' EvRep, c, v)
-    ForceFeedbackEvent       (coerce -> c) (coerce -> v) -> (fromEnum' EvFf,  c, v)
-    PowerEvent               (coerce -> c) (coerce -> v) -> (fromEnum' EvPwr, c, v)
+    SyncEvent (fromEnum' -> c) -> (fromEnum' EvSyn, c, 0)
+    KeyEvent (fromEnum' -> c) (fromIntegral . fromEnum -> v) -> (fromEnum' EvKey, c, v)
+    RelativeEvent (fromEnum' -> c) (coerce -> v) -> (fromEnum' EvRel, c, v)
+    AbsoluteEvent (fromEnum' -> c) (coerce -> v) -> (fromEnum' EvAbs, c, v)
+    MiscEvent (fromEnum' -> c) (coerce -> v) -> (fromEnum' EvMsc, c, v)
+    SwitchEvent (fromEnum' -> c) (coerce -> v) -> (fromEnum' EvSw,  c, v)
+    LEDEvent (fromEnum' -> c) (coerce -> v) -> (fromEnum' EvLed, c, v)
+    SoundEvent (fromEnum' -> c) (coerce -> v) -> (fromEnum' EvSnd, c, v)
+    RepeatEvent (fromEnum' -> c) (coerce -> v) -> (fromEnum' EvRep, c, v)
+    ForceFeedbackEvent (coerce -> c) (coerce -> v) -> (fromEnum' EvFf,  c, v)
+    PowerEvent (coerce -> c) (coerce -> v) -> (fromEnum' EvPwr, c, v)
     ForceFeedbackStatusEvent (coerce -> c) (coerce -> v) -> (fromEnum' EvFfStatus, c, v)
-    UnknownEvent             t (coerce -> c) (coerce -> v) -> (t, c, v)
+    UnknownEvent t (coerce -> c) (coerce -> v) -> (t, c, v)
 
 fromCTimeVal :: Raw.Timeval -> DiffTime
 fromCTimeVal Raw.Timeval{tv_sec = s, tv_usec = us} =
