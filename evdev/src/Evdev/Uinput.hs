@@ -32,6 +32,12 @@ import Evdev.Codes
 import qualified Evdev.LowLevel as LL
 import Util
 
+import Control.Concurrent (newEmptyMVar, putMVar, readMVar, threadDelay)
+import Control.Monad.Loops (untilM_)
+import Data.Maybe (fromMaybe)
+import GHC.Event qualified as Event
+import System.UDev qualified as UDev
+
 -- | A `uinput` device.
 newtype Device = Device LL.UDevice
 
@@ -84,7 +90,30 @@ newDevice name DeviceOpts{..} = do
         LL.withAbsInfo absInfo $ \ptr ->
             enable ptr EvAbs [fromEnum' axis]
 
-    fmap Device $ cec $ LL.createFromDevice dev $ fromEnum' LL.UOMManaged
+    -- wait for device creation
+    mv <- newEmptyMVar
+    udev <- UDev.newUDev
+    monitor <- UDev.newFromNetlink udev UDev.UDevId
+    UDev.enableReceiving monitor
+    UDev.filterAddMatchSubsystemDevtype monitor "input" Nothing
+    UDev.enableReceiving monitor
+    fd <- UDev.getFd monitor
+    eventManager <- fromMaybe (error "not using GHC's threaded RTS") <$> Event.getSystemEventManager
+    fdKey <-
+        Event.registerFd
+            eventManager
+            (\_ _ -> traverse_ (putMVar mv) . UDev.getDevnode =<< UDev.receiveDevice monitor)
+            fd
+            Event.evtRead
+            Event.MultiShot
+    uinputDev <- fmap Device $ cec $ LL.createFromDevice dev $ fromEnum' LL.UOMManaged
+    deviceDevnode uinputDev >>= \case
+        Nothing -> pure () -- shouldn't generally happen - just return and hope for the best
+        Just devnode -> untilM_ (pure ()) $ (== devnode) <$> readMVar mv
+    Event.unregisterFd eventManager fdKey
+    UDev.freeUDev udev
+    threadDelay 100000
+    pure uinputDev
   where
     cec :: CErrCall a => IO a -> IO (CErrCallRes a)
     cec = cErrCall "newDevice" ()
