@@ -14,6 +14,7 @@ module Evdev.Raw where
 import Data.Char
 import Data.List
 import Data.Maybe
+import Data.Tuple.Extra
 import Foreign
 import HsBindgen.Runtime.LibC qualified
 import HsBindgen.TH
@@ -21,28 +22,23 @@ import Language.Haskell.TH
 import System.Process
 
 do
-    -- hs-bindgen uses its own libclang to parse C headers, which is entirely
-    -- separate from Cabal's C compilation pipeline. Cabal's `pkgconfig-depends`
-    -- feeds into GHC/cc but NOT into hs-bindgen's libclang. So we must provide
-    -- include paths explicitly.
-    --
-    -- System headers (libc, linux): On non-Nix systems, libclang finds these
-    -- via its default search paths (e.g. /usr/include). On Nix, the
-    -- `hsBindgenHook` setup hook populates `BINDGEN_EXTRA_CLANG_ARGS` with the
-    -- necessary `-isystem` flags.
-    -- See: https://github.com/well-typed/hs-bindgen/tree/main/nix/
-    --
-    -- libevdev headers: These live in a versioned subdirectory (e.g.
-    -- include/libevdev-1.0/) that neither libclang's defaults nor the Nix hook
-    -- cover, so we always need pkg-config to locate them.
     libevdev <-
         dropWhileEnd isSpace
-            . fromMaybe (error "pkg-config failed to locate libevdev")
+            . fromMaybe (error "bad pkg-config response")
             . stripPrefix "-I"
             <$> runIO (readProcess "pkg-config" ["--cflags-only-I", "libevdev"] "")
+    -- TODO put this code in another file so we can reuse it for `Codes.hs` without hitting stage restriction
+    libc <-
+        dropWhile isSpace
+            . fromMaybe (error "bad cpp response")
+            . find ("libc" `isInfixOf`)
+            . dropWhile (not . ("#include" `isPrefixOf`))
+            . lines
+            . thd3
+            <$> runIO (readProcessWithExitCode "cpp" ["-v"] "")
     withHsBindgen
         def
-            { clang = def{extraIncludeDirs = [Dir libevdev]}
+            { clang = def{extraIncludeDirs = [Dir libevdev, Dir libc]}
             , fieldNamingStrategy = OmitFieldPrefixes
             , programSlicing = EnableProgramSlicing
             }

@@ -23,33 +23,11 @@
                     build-tools = [ pkgs.llvmPackages.llvm ];
                     libs = [ pkgs.llvmPackages.libclang ];
                   };
-                  packages.evdev.components.library = {
-                    build-tools = [ hsBindgenHook ];
-                  };
                 }];
               };
           })
         ];
         pkgs = import nixpkgs { inherit system overlays; inherit (haskell-nix) config; };
-        # hs-bindgen's libclang is separate from Cabal's C compilation pipeline,
-        # so it needs explicit include paths. This hook (modelled on hs-bindgen's
-        # own hsBindgenHook) sets BINDGEN_EXTRA_CLANG_ARGS so that libclang can
-        # find system and library headers in the Nix store.
-        # See: https://github.com/well-typed/hs-bindgen/tree/main/nix/
-        hsBindgenHook = pkgs.makeSetupHook {
-          name = "hs-bindgen-hook";
-          substitutions = {
-            clang = pkgs.llvmPackages.clang;
-          };
-        } (pkgs.writeText "hs-bindgen-hook.sh" ''
-          populateHsBindgenEnv() {
-              BINDGEN_EXTRA_CLANG_ARGS="$(<@clang@/nix-support/cc-cflags) $(<@clang@/nix-support/libc-cflags) $NIX_CFLAGS_COMPILE"
-              export BINDGEN_EXTRA_CLANG_ARGS
-              BINDGEN_BUILTIN_INCLUDE_DIR=disable
-              export BINDGEN_BUILTIN_INCLUDE_DIR
-          }
-          postHook="''${postHook:-}"$'\n'"populateHsBindgenEnv"$'\n'
-        '');
         flake = pkgs.myHaskellProject.flake { };
       in
       flake // {
