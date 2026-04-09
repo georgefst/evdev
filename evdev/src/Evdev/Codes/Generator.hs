@@ -195,9 +195,7 @@ newtype ConstructorName = ConstructorName Name deriving newtype (Eq, Ord, Show)
 newtype PatternName = PatternName Name deriving newtype (Eq, Ord, Show)
 
 generateCodes :: FilePath -> Q [Dec]
-generateCodes file = do
-    contents <- runIO $ readFile file
-    pure $ concatMap (uncurry generateType) $ parseHeader contents
+generateCodes = fmap (concatMap (uncurry generateType) . parseHeader) . runIO . readFile
 
 generateType :: TypeInfo -> [Define] -> [Dec]
 generateType ty defs =
