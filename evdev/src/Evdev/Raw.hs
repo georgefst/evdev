@@ -14,7 +14,6 @@ module Evdev.Raw where
 import Data.Char
 import Data.List
 import Data.Maybe
-import Data.Tuple.Extra
 import Foreign
 import HsBindgen.Runtime.LibC qualified
 import HsBindgen.TH
@@ -27,18 +26,9 @@ do
             . fromMaybe (error "bad pkg-config response")
             . stripPrefix "-I"
             <$> runIO (readProcess "pkg-config" ["--cflags-only-I", "libevdev"] "")
-    -- TODO put this code in another file so we can reuse it for `Codes.hs` without hitting stage restriction
-    libc <-
-        dropWhile isSpace
-            . fromMaybe (error "bad cpp response")
-            . find ("libc" `isInfixOf`)
-            . dropWhile (not . ("#include" `isPrefixOf`))
-            . lines
-            . thd3
-            <$> runIO (readProcessWithExitCode "cpp" ["-v"] "")
     withHsBindgen
         def
-            { clang = def{extraIncludeDirs = [Dir libevdev, Dir libc]}
+            { clang = def{extraIncludeDirs = [Dir libevdev]}
             , fieldNamingStrategy = OmitFieldPrefixes
             , programSlicing = EnableProgramSlicing
             }

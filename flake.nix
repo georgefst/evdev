@@ -10,6 +10,12 @@
           haskell-nix.overlay
           (final: prev: {
             myHaskellProject =
+              let
+                addIncludeDir =
+                  ''
+                    export C_INCLUDE_PATH="${final.stdenv.cc.libc.dev}/include''${C_INCLUDE_PATH:+:$C_INCLUDE_PATH}"
+                  '';
+              in
               final.haskell-nix.hix.project {
                 src = ./.;
                 compiler-nix-name = "ghc912";
@@ -18,11 +24,13 @@
                 shell.tools.cabal = "latest";
                 shell.tools.haskell-language-server = "latest";
                 shell.withHoogle = false;
+                shell.shellHook = addIncludeDir;
                 modules = [{
                   packages.libclang-bindings.components.library = {
                     build-tools = [ pkgs.llvmPackages.llvm ];
                     libs = [ pkgs.llvmPackages.libclang ];
                   };
+                  packages.evdev.components.library.preBuild = addIncludeDir;
                 }];
               };
           })

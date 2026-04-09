@@ -5,24 +5,23 @@ See [the Linux Kernel documentation](https://www.kernel.org/doc/html/latest/inpu
 -}
 module Evdev.Codes where
 
-import Data.Char
-import Data.List
-import Data.Maybe
-import Data.Tuple.Extra
+import Control.Monad
 import Evdev.Codes.Generator
 import Evdev.Raw
 import Language.Haskell.TH
-import System.Process
+import System.Directory
+import System.Environment
+import System.FilePath
 import Util
 
 $( do
-    libc <-
-        dropWhile isSpace
-            . fromMaybe (error "bad cpp response")
-            . find ("libc" `isInfixOf`)
-            . dropWhile (not . ("#include" `isPrefixOf`))
-            . lines
-            . thd3
-            <$> runIO (readProcessWithExitCode "cpp" ["-v"] "")
-    generateCodes $ libc <> "/linux/input-event-codes.h"
+    candidates <-
+        runIO $
+            map (<> "/linux/input-event-codes.h")
+                . (<> ["/usr/include"])
+                . maybe [] splitSearchPath
+                <$> lookupEnv "C_INCLUDE_PATH"
+    runIO (filterM doesFileExist candidates) >>= \case
+        d : _ -> generateCodes d
+        [] -> error $ "Could not find input-event-codes.h. Install Linux headers or try setting C_INCLUDE_PATH."
  )
