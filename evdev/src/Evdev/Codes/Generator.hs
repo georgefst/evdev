@@ -194,17 +194,10 @@ newtype BindgenName = BindgenName Name deriving newtype (Eq, Ord, Show)
 newtype ConstructorName = ConstructorName Name deriving newtype (Eq, Ord, Show)
 newtype PatternName = PatternName Name deriving newtype (Eq, Ord, Show)
 
-generateCodes :: Q [Dec]
-generateCodes = do
-    -- oh yeah, this doesn't do anything unless it's in the cabal file
-    -- addDependentFile file
+generateCodes :: FilePath -> Q [Dec]
+generateCodes file = do
     contents <- runIO $ readFile file
-    -- for_ groups \TypeInfo{name = TypeName name, doc} -> putDoc (DeclDoc name) doc
     pure $ concatMap (uncurry generateType) $ parseHeader contents
-  where
-    -- cp /nix/store/7iwv8dcgsjmkrnn752hnfdxh3f7wahmd-linux-headers-6.16.7/include/linux/input-event-codes.h codes.h
-    -- file = "codes.h"
-    file = "/nix/store/7iwv8dcgsjmkrnn752hnfdxh3f7wahmd-linux-headers-6.16.7/include/linux/input-event-codes.h"
 
 generateType :: TypeInfo -> [Define] -> [Dec]
 generateType ty defs =

@@ -5,8 +5,24 @@ See [the Linux Kernel documentation](https://www.kernel.org/doc/html/latest/inpu
 -}
 module Evdev.Codes where
 
+import Data.Char
+import Data.List
+import Data.Maybe
+import Data.Tuple.Extra
 import Evdev.Codes.Generator
 import Evdev.Raw
+import Language.Haskell.TH
+import System.Process
 import Util
 
-$(generateCodes)
+$( do
+    libc <-
+        dropWhile isSpace
+            . fromMaybe (error "bad cpp response")
+            . find ("libc" `isInfixOf`)
+            . dropWhile (not . ("#include" `isPrefixOf`))
+            . lines
+            . thd3
+            <$> runIO (readProcessWithExitCode "cpp" ["-v"] "")
+    generateCodes $ libc <> "/linux/input-event-codes.h"
+ )

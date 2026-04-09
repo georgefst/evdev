@@ -28,6 +28,7 @@ common common
         hs-bindgen-runtime ^>= {0.1},
         monad-loops ^>= 0.4.3,
         mtl ^>= {2.2, 2.3},
+        process ^>= 1.6,
         rawfilepath ^>= {1.0, 1.1},
         template-haskell ^>= {2.21, 2.22, 2.23},
         time ^>= {1.9.3, 1.10, 1.11, 1.12, 1.13, 1.14, 1.15},

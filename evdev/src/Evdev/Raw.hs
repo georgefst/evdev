@@ -11,20 +11,34 @@
 
 module Evdev.Raw where
 
+import Data.Char
+import Data.List
+import Data.Maybe
+import Data.Tuple.Extra
 import Foreign
 import HsBindgen.Runtime.LibC qualified
 import HsBindgen.TH
+import Language.Haskell.TH
+import System.Process
 
 do
+    libevdev <-
+        dropWhileEnd isSpace
+            . fromMaybe (error "bad pkg-config response")
+            . stripPrefix "-I"
+            <$> runIO (readProcess "pkg-config" ["--cflags-only-I", "libevdev"] "")
+    -- TODO put this code in another file so we can reuse it for `Codes.hs` without hitting stage restriction
+    libc <-
+        dropWhile isSpace
+            . fromMaybe (error "bad cpp response")
+            . find ("libc" `isInfixOf`)
+            . dropWhile (not . ("#include" `isPrefixOf`))
+            . lines
+            . thd3
+            <$> runIO (readProcessWithExitCode "cpp" ["-v"] "")
     withHsBindgen
         def
-            { clang =
-                def
-                    { extraIncludeDirs =
-                        [ Dir "/nix/store/iqs23in0fqnf44vnb8l98x7bai77jiv3-libevdev-1.13.4/include/libevdev-1.0"
-                        , Dir "/nix/store/gi4cz4ir3zlwhf1azqfgxqdnczfrwsr7-glibc-2.40-66-dev/include"
-                        ]
-                    }
+            { clang = def{extraIncludeDirs = [Dir libevdev, Dir libc]}
             , fieldNamingStrategy = OmitFieldPrefixes
             , programSlicing = EnableProgramSlicing
             }
