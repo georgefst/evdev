@@ -27,8 +27,8 @@
                 shell.shellHook = addIncludeDir;
                 modules = [{
                   packages.libclang-bindings.components.library = {
-                    build-tools = [ pkgs.llvmPackages.llvm ];
-                    libs = [ pkgs.llvmPackages.libclang ];
+                    build-tools = [ final.llvmPackages.llvm ];
+                    libs = [ final.llvmPackages.libclang ];
                   };
                   packages.evdev.components.library.preBuild = addIncludeDir;
                 }];
