@@ -7,129 +7,75 @@
 
 module Evdev.Codes.Generator (generateCodes) where
 
+import Data.Bifunctor
 import Data.Char
 import Data.Either
 import Data.Foldable
 import Data.Functor
 import Data.List
 import Data.List.Extra
-import Data.Map.Strict (Map)
+import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.Map.Ordered qualified as OMap
 import Data.Map.Strict qualified as Map
 import Data.Maybe
 import Language.Haskell.TH
 import Text.Read
 
-groups :: [TypeInfo]
-groups =
-    [ TypeInfo
-        { name = TypeName $ mkName "EventType"
-        , prefixes = ["EV"]
-        , doc =
-            """
-            Each of these corresponds to one of the constructors of 'Evdev.EventData'.
-            So you're unlikely to need to use these directly (C doesn't have ADTs - we do).
-            """
-        }
-    , TypeInfo
-        { name = TypeName $ mkName "SyncEvent"
-        , prefixes = ["SYN"]
-        , doc =
-            """
-            Synchronization events
-            """
-        }
-    , TypeInfo
-        { name = TypeName $ mkName "Key"
-        , prefixes = ["KEY", "BTN"]
-        , doc =
-            """
-            Keys and buttons
-            """
-        }
-    , TypeInfo
-        { name = TypeName $ mkName "RelativeAxis"
-        , prefixes = ["REL"]
-        , doc =
-            """
-            Relative changes
-            """
-        }
-    , TypeInfo
-        { name = TypeName $ mkName "AbsoluteAxis"
-        , prefixes = ["ABS"]
-        , doc =
-            """
-            Absolute changes
-            """
-        }
-    , TypeInfo
-        { name = TypeName $ mkName "SwitchEvent"
-        , prefixes = ["SW"]
-        , doc =
-            """
-            Stateful binary switches
-            """
-        }
-    , TypeInfo
-        { name = TypeName $ mkName "MiscEvent"
-        , prefixes = ["MSC"]
-        , doc =
-            """
-            Miscellaneous
-            """
-        }
-    , TypeInfo
-        { name = TypeName $ mkName "LEDEvent"
-        , prefixes = ["LED"]
-        , doc =
-            """
-            LEDs
-            """
-        }
-    , TypeInfo
-        { name = TypeName $ mkName "RepeatEvent"
-        , prefixes = ["REP"]
-        , doc =
-            """
-            Specifying autorepeating events
-            """
-        }
-    , TypeInfo
-        { name = TypeName $ mkName "SoundEvent"
-        , prefixes = ["SND"]
-        , doc =
-            """
-            For simple sound output devices
-            """
-        }
-    , TypeInfo
-        { name = TypeName $ mkName "DeviceProperty"
-        , prefixes = ["INPUT_PROP"]
-        , doc =
-            """
-            Device properties
-            """
-        }
-    ]
+data CodeType
+    = EventType
+    | SyncEvent
+    | Key
+    | RelativeAxis
+    | AbsoluteAxis
+    | SwitchEvent
+    | MiscEvent
+    | LEDEvent
+    | RepeatEvent
+    | SoundEvent
+    | DeviceProperty
+    deriving (Eq, Ord, Show, Enum, Bounded)
+codeTypePrefixes :: CodeType -> [String]
+codeTypePrefixes = \case
+    EventType -> ["EV"]
+    SyncEvent -> ["SYN"]
+    Key -> ["KEY", "BTN"]
+    RelativeAxis -> ["REL"]
+    AbsoluteAxis -> ["ABS"]
+    SwitchEvent -> ["SW"]
+    MiscEvent -> ["MSC"]
+    LEDEvent -> ["LED"]
+    RepeatEvent -> ["REP"]
+    SoundEvent -> ["SND"]
+    DeviceProperty -> ["INPUT_PROP"]
+codeTypeDoc :: CodeType -> String
+codeTypeDoc = \case
+    EventType ->
+        """
+        Each of these corresponds to one of the constructors of 'Evdev.EventData'.
+        So you're unlikely to need to use these directly (C doesn't have ADTs - we do).
+        """
+    SyncEvent -> "Synchronization events"
+    Key -> "Keys and buttons"
+    RelativeAxis -> "Relative changes"
+    AbsoluteAxis -> "Absolute changes"
+    SwitchEvent -> "Stateful binary switches"
+    MiscEvent -> "Miscellaneous"
+    LEDEvent -> "LEDs"
+    RepeatEvent -> "Specifying autorepeating events"
+    SoundEvent -> "For simple sound output devices"
+    DeviceProperty -> "Device properties"
 
-data TypeInfo = TypeInfo
-    { name :: TypeName
-    , prefixes :: [String]
-    , doc :: String
+data Define = Define
+    { name :: MacroName
+    , value :: Either Integer MacroName
     }
 
-data Define
-    = Primary {name :: MacroName, value :: Int}
-    | Alias {name :: MacroName, target :: MacroName}
-    deriving (Show)
-
--- | Parse a single @#define@ line.
-parseLine :: String -> Maybe Define
-parseLine line = case words line of
+parseDefineLine :: String -> Maybe Define
+parseDefineLine line = case words line of
     ("#define" : k@(MacroName -> name) : v : _)
         | any (`isSuffixOf` k) metaSuffices -> Nothing
-        | Just value <- readMaybe v -> Just Primary{name, value}
-        | otherwise -> Just Alias{name, target = MacroName v}
+        | Just n <- readMaybe v -> Just Define{name, value = Left n}
+        | otherwise -> Just Define{name, value = Right $ MacroName v}
     _ -> Nothing
   where
     metaSuffices =
@@ -138,77 +84,53 @@ parseLine line = case words line of
         , "_MIN_INTERESTING"
         ]
 
-parseHeader :: String -> [(TypeInfo, [Define])]
+parseHeader :: String -> [(CodeType, [Define])]
 parseHeader input =
-    map snd
-        . Map.toList
-        . Map.fromListWith (\(t, a) (_, b) -> (t, a <> b))
-        . map
-            ( \d ->
-                let
-                    MacroName s = d.name
-                    ty =
-                        snd
-                            . fromMaybe (error $ "no prefix matched: " <> show d.name)
-                            $ find (\(p, _) -> p `isPrefixOf` s) prefixes
-                 in
-                    (ty.name, (ty, [d]))
-            )
-        . mapMaybe parseLine
+    Map.toList
+        . foldr (uncurry $ Map.adjust . (:)) (Map.fromList $ map (,[]) enumerate)
+        . map (\d@Define{name = MacroName name} -> (d, snd . unwrap name $ find ((`isPrefixOf` name) . fst) prefixes))
+        . mapMaybe parseDefineLine
         $ lines input
   where
-    prefixes = concatMap (\g -> (,g) <$> g.prefixes) groups
+    unwrap name = fromMaybe (error $ "no prefix matched: " <> show name)
+    prefixes = concatMap (\t -> (,t) <$> codeTypePrefixes t) enumerate
 
-{- | Deduplicate primaries: when multiple primaries share a value string,
-keep the last one as the constructor and turn earlier ones into aliases.
-This handles cases like @BTN_GAMEPAD 0x130@ followed by @BTN_SOUTH 0x130@,
-where @BTN_SOUTH@ becomes the constructor and @BTN_GAMEPAD@ becomes an alias.
--}
-dedup :: [Define] -> [Define]
-dedup defs =
-    let
-        -- First pass: find which name is the "winner" for each value (last one wins)
-        valueToName :: Map Int MacroName
-        valueToName =
-            foldl'
-                ( \m d -> case d of
-                    Primary name val -> Map.insert val name m
-                    Alias _ _ -> m
-                )
-                Map.empty
-                defs
-        -- Second pass: convert losers into aliases pointing to the winner
-        convert :: Define -> Define
-        convert (Primary name val) =
-            let winner = valueToName Map.! val
-             in if name == winner
-                    then Primary name val
-                    else Alias name winner
-        convert a@Alias{} = a
-     in
-        map convert defs
+processType :: [Define] -> [(ConstructorName, (Integer, [PatternName]))]
+processType defs =
+    map (first toConstructorName) . OMap.assocs $
+        foldl'
+            (flip \(alias, target) -> OMap.alter (fmap $ second (toPatternName alias :)) target)
+            litsByPrimary
+            aliasMacros
+  where
+    (litMacros, aliasMacros) = partitionEithers $ defs <&> \Define{name, value} -> bimap (name,) (name,) value
+    litsByValue = foldl' (flip \(name, value) -> Map.insertWith ((<>)) value (pure name)) Map.empty litMacros
+    -- when multiple literal macros point to the same value, turn all but the first in to pattern synonyms
+    litsByPrimary = OMap.fromList . map (\(n, k :| as) -> (k, (n, map toPatternName as))) $ Map.toList litsByValue
 
 newtype MacroName = MacroName String deriving newtype (Eq, Ord, Show)
 newtype TypeName = TypeName Name deriving newtype (Eq, Ord, Show)
-newtype BindgenName = BindgenName Name deriving newtype (Eq, Ord, Show)
 newtype ConstructorName = ConstructorName Name deriving newtype (Eq, Ord, Show)
 newtype PatternName = PatternName Name deriving newtype (Eq, Ord, Show)
 
 generateCodes :: FilePath -> Q [Dec]
-generateCodes = fmap (concatMap (uncurry generateType) . parseHeader) . runIO . readFile
+generateCodes path = do
+    contents <- runIO $ readFile path
+    pure
+        . concatMap
+            ( uncurry (uncurry . generateType)
+                . bimap
+                    (TypeName . mkName . show)
+                    (foldMap (\(k, (n, as)) -> (([(k, n)], map (,k) as))) . processType)
+            )
+        $ parseHeader contents
 
-generateType :: TypeInfo -> [Define] -> [Dec]
-generateType ty defs =
-    [ dataType ty.name $ map snd primaries
-    , simpleEnumInstance ty.name primaries
+generateType :: TypeName -> [(ConstructorName, Integer)] -> [(PatternName, ConstructorName)] -> [Dec]
+generateType name constructors patterns =
+    [ dataType name $ map fst constructors
+    , simpleEnumInstance name constructors
     ]
-        <> concatMap (patternSynonym ty.name) aliases
-  where
-    (primaries, aliases) =
-        partitionEithers $
-            dedup defs <&> \case
-                Primary n _ -> Left (toBindgenName n, toConstructorName n)
-                Alias a t -> Right (toPatternName a, toConstructorName t)
+        <> concatMap (uncurry $ patternSynonym name) patterns
 
 dataType :: TypeName -> [ConstructorName] -> Dec
 dataType (TypeName tyName) conNames =
@@ -220,7 +142,7 @@ dataType (TypeName tyName) conNames =
         (conNames <&> \(ConstructorName s) -> NormalC s [])
         [DerivClause Nothing (map ConT [''Eq, ''Ord, ''Read, ''Show])]
 
-simpleEnumInstance :: TypeName -> [(BindgenName, ConstructorName)] -> Dec
+simpleEnumInstance :: TypeName -> [(ConstructorName, Integer)] -> Dec
 simpleEnumInstance (TypeName tyName) conNames =
     InstanceD
         Nothing
@@ -230,7 +152,7 @@ simpleEnumInstance (TypeName tyName) conNames =
             (mkName "enumerate'")
             [ Clause
                 []
-                (NormalB (ListE $ conNames <&> \(_, ConstructorName s) -> ConE s))
+                (NormalB (ListE $ conNames <&> \(ConstructorName s, _) -> ConE s))
                 []
             ]
         , FunD
@@ -240,12 +162,12 @@ simpleEnumInstance (TypeName tyName) conNames =
                     [VarP n]
                     ( GuardedB
                         ( map
-                            ( \(BindgenName val, ConstructorName con) ->
+                            ( \(ConstructorName con, val) ->
                                 ( NormalG
                                     ( InfixE
                                         (Just (VarE n))
                                         (VarE '(==))
-                                        (Just (AppE (VarE 'fromIntegral) (VarE val)))
+                                        (Just (LitE (IntegerL val)))
                                     )
                                 , AppE (ConE 'Just) (ConE con)
                                 )
@@ -263,10 +185,10 @@ simpleEnumInstance (TypeName tyName) conNames =
                 ( NormalB
                     ( LamCaseE
                         ( map
-                            ( \(BindgenName val, ConstructorName con) ->
+                            ( \(ConstructorName con, val) ->
                                 Match
                                     (ConP con [] [])
-                                    (NormalB (AppE (VarE 'fromIntegral) (VarE val)))
+                                    (NormalB (LitE (IntegerL val)))
                                     []
                             )
                             conNames
@@ -277,8 +199,8 @@ simpleEnumInstance (TypeName tyName) conNames =
             ]
         ]
 
-patternSynonym :: TypeName -> (PatternName, ConstructorName) -> [Dec]
-patternSynonym (TypeName tyName) (PatternName pat, ConstructorName con) =
+patternSynonym :: TypeName -> PatternName -> ConstructorName -> [Dec]
+patternSynonym (TypeName tyName) (PatternName pat) (ConstructorName con) =
     [ PatSynSigD pat (ConT tyName)
     , PatSynD pat (PrefixPatSyn []) ImplBidir (ConP con [] [])
     ]
@@ -292,9 +214,3 @@ toPatternName :: MacroName -> PatternName
     titleCase = \case
         [] -> []
         c : cs -> toUpper c : map toLower cs
-
--- KEY_LEFT_SHIFT -> kEY_LEFT_SHIFT
-toBindgenName :: MacroName -> BindgenName
-toBindgenName (MacroName s) = BindgenName $ mkName case s of
-    [] -> []
-    (c : cs) -> toLower c : cs

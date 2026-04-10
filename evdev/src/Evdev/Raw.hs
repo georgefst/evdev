@@ -42,6 +42,5 @@ do
         do
             hashInclude "libevdev/libevdev.h"
             hashInclude "libevdev/libevdev-uinput.h"
-            hashInclude "linux/input-event-codes.h"
 
 foreign import ccall "&libevdev_hs_close" libevdev_hs_close :: FinalizerPtr Libevdev

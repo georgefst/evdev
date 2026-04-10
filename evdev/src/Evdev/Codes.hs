@@ -7,13 +7,14 @@ module Evdev.Codes where
 
 import Control.Monad
 import Evdev.Codes.Generator
-import Evdev.Raw
 import Language.Haskell.TH
 import System.Directory
 import System.Environment
 import System.FilePath
 import Util
 
+-- TODO `hs-bindgen` has no support for macro-based enums like `c2hs` does
+-- ideally we'd just add `hashInclude "linux/input-event-codes.h"` to our `hs-bindgen` invocation and totally avoid this
 $( do
     candidates <-
         runIO $

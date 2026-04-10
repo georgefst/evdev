@@ -11,8 +11,7 @@ import Data.Maybe
 import Data.Time
 import Evdev
 import Evdev.Codes
-import Evdev.Raw
-import qualified Evdev.Uinput as Uinput
+import Evdev.Uinput qualified as Uinput
 import Foreign.C
 import RawFilePath
 import System.FilePath.ByteString
@@ -32,7 +31,7 @@ smoke :: TestTree
 smoke = testCase "Smoke" do
     start <- newEmptyMVar
     let duName = "evdev-test-device"
-        keys = mapMaybe toEnum' [kEY_1 .. kEY_0]
+        keys = mapMaybe (toEnum' @_ @Integer) [fromEnum' Key1 .. fromEnum' Key0]
         evs = concatMap ((<$> [Pressed, Released]) . KeyEvent) keys
     assertEqual "10 keys" 10 $ length keys
     du <- Uinput.newDevice duName Uinput.defaultDeviceOpts{Uinput.keys}
@@ -61,9 +60,11 @@ inverses =
                 let tv = Timeval (fromIntegral @CLong s) (fromIntegral @CLong us)
                  in s < 0 || us < 0 || us >= 1_000_000 || toCTimeVal (fromCTimeVal tv) == tv
             , testProperty "2" \n ->
-                let -- 'toCTimeVal' goes from picoseconds to microseconds
+                let
+                    -- 'toCTimeVal' goes from picoseconds to microseconds
                     resolutionFactor = 1_000_000
-                 in abs (diffTimeToPicoseconds (fromCTimeVal . toCTimeVal $ picosecondsToDiffTime n) - n)
+                 in
+                    abs (diffTimeToPicoseconds (fromCTimeVal . toCTimeVal $ picosecondsToDiffTime n) - n)
                         < resolutionFactor
             ]
         , testProperty "EventData" \x@(t, c, _v) ->
@@ -79,8 +80,8 @@ inverses =
              in x' == x || syncValueZero
         ]
 
---TODO make delay and max retries configurable, add to library?
-retryIf :: forall a e. Exception e => (e -> Bool) -> IO a -> IO a
+-- TODO make delay and max retries configurable, add to library?
+retryIf :: forall a e. (Exception e) => (e -> Bool) -> IO a -> IO a
 retryIf p x = go 100
   where
     go :: Word -> IO a
