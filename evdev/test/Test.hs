@@ -12,12 +12,14 @@ import Data.Time
 import Evdev
 import Evdev.Codes
 import qualified Evdev.Uinput as Uinput
+import Foreign.C
 import RawFilePath
 import System.FilePath.ByteString
 import System.IO.Error
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
+import Util
 
 main :: IO ()
 main = defaultMain $ testGroup "Tests" [smoke, inverses]
@@ -29,8 +31,9 @@ smoke :: TestTree
 smoke = testCase "Smoke" do
     start <- newEmptyMVar
     let duName = "evdev-test-device"
-        keys = [Key1 .. Key0]
+        keys = mapMaybe (toEnum' @_ @Integer) [fromEnum' Key1 .. fromEnum' Key0]
         evs = concatMap ((<$> [Pressed, Released]) . KeyEvent) keys
+    assertEqual "10 keys" 10 $ length keys
     du <- Uinput.newDevice duName Uinput.defaultDeviceOpts{Uinput.keys}
     void $ forkIO do
         takeMVar start -- wait until reading device is initialised
@@ -54,7 +57,7 @@ inverses =
         [ testGroup
             "TimeVal"
             [ testProperty "1" \(s, us) ->
-                let tv = CTimeVal s us
+                let tv = Timeval (fromIntegral @CLong s) (fromIntegral @CLong us)
                  in s < 0 || us < 0 || us >= 1_000_000 || toCTimeVal (fromCTimeVal tv) == tv
             , testProperty "2" \n ->
                 let -- 'toCTimeVal' goes from picoseconds to microseconds
@@ -68,7 +71,7 @@ inverses =
                     -- 'toCEventData' takes all values for sync events to 0 - fine as they don't mean anything
                     and
                         [ t == t'
-                        , fromEnum t == fromEnum EvSyn
+                        , t == fromEnum' EvSyn
                         , c == c'
                         , v' == 0
                         ]

@@ -22,11 +22,18 @@ common common
         base >= 4.11 && < 5,
         bytestring ^>= {0.10, 0.11, 0.12},
         containers ^>= {0.6.2, 0.7, 0.8},
+        directory ^>= 1.3,
         extra ^>= {1.6.18, 1.7, 1.8},
+        filepath ^>= 1.5,
         filepath-bytestring ^>= {1.4.2, 1.5},
+        hs-bindgen ^>= {0.1},
+        hs-bindgen-runtime ^>= {0.1},
         monad-loops ^>= 0.4.3,
         mtl ^>= {2.2, 2.3},
+        ordered-containers ^>= 0.2.4,
+        process ^>= 1.6,
         rawfilepath ^>= {1.0, 1.1},
+        template-haskell ^>= {2.21, 2.22, 2.23},
         time ^>= {1.9.3, 1.10, 1.11, 1.12, 1.13, 1.14, 1.15},
         unix ^>= 2.8,
     default-language: GHC2021
@@ -48,16 +55,15 @@ library
         Evdev
         Evdev.Codes
         Evdev.Uinput
-    other-modules:
-        Evdev.LowLevel
+        Evdev.Raw
         Util
+    other-modules:
+        Evdev.Codes.Generator
     hs-source-dirs: src
     c-sources:
         src-c/evdev-hs.c
     pkgconfig-depends:
         libevdev
-    build-tool-depends:
-        c2hs:c2hs
 
 test-suite test
     import: common

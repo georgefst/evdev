@@ -10,6 +10,12 @@
           haskell-nix.overlay
           (final: prev: {
             myHaskellProject =
+              let
+                addIncludeDir =
+                  ''
+                    export C_INCLUDE_PATH="${final.stdenv.cc.libc.dev}/include''${C_INCLUDE_PATH:+:$C_INCLUDE_PATH}"
+                  '';
+              in
               final.haskell-nix.hix.project {
                 src = ./.;
                 compiler-nix-name = "ghc912";
@@ -18,10 +24,27 @@
                 shell.tools.cabal = "latest";
                 shell.tools.haskell-language-server = "latest";
                 shell.withHoogle = false;
+                shell.shellHook = addIncludeDir;
+                modules = [{
+                  packages.libclang-bindings.components.library = {
+                    build-tools = [ final.llvmPackages.llvm ];
+                    libs = [ final.llvmPackages.libclang ];
+                  };
+                  packages.evdev.components.library.preBuild = addIncludeDir;
+                }];
               };
           })
         ];
         pkgs = import nixpkgs { inherit system overlays; inherit (haskell-nix) config; };
+        flake = pkgs.myHaskellProject.flake { };
       in
-      pkgs.myHaskellProject.flake { });
+      flake // {
+        packages = flake.packages // {
+          ci = pkgs.linkFarm "ci" (
+            pkgs.lib.mapAttrsToList (name: drv: { inherit name; path = drv; })
+              flake.ciJobs.packages
+          );
+        };
+      }
+    );
 }
