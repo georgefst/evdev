@@ -47,7 +47,7 @@ smoke = testCase "Smoke" do
                 putMVar start ()
                 (@?= Nothing) =<< devicePhys d
                 (@?= Nothing) =<< deviceUniq d
-                (@?= [EvKey, EvSyn]) =<< deviceEventTypes d
+                (@?= [EvSyn, EvKey]) =<< deviceEventTypes d
                 evs' <- whileJust ((\x -> guard (x /= last evs) $> x) . eventData <$> nextEvent d) pure
                 filter (/= SyncEvent SynReport) evs' @?= init evs
 
