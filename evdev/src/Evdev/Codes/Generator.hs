@@ -19,6 +19,7 @@ import Data.Map.Ordered qualified as OMap
 import Data.Map.Strict qualified as Map
 import Data.Maybe
 import Language.Haskell.TH
+import Language.Haskell.TH.Syntax
 import Text.Read
 
 data CodeType
@@ -116,6 +117,7 @@ newtype PatternName = PatternName Name deriving newtype (Eq, Ord, Show)
 generateCodes :: FilePath -> Q [Dec]
 generateCodes path = do
     contents <- runIO $ readFile path
+    addModFinalizer $ for_ enumerate \ct -> putDoc (DeclDoc $ mkName (show ct)) $ codeTypeDoc ct
     pure
         . concatMap
             ( uncurry (uncurry . generateType)
